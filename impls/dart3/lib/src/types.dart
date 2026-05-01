@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'package:mal/src/utils/str_escape.dart';
+import 'package:mal/mal.dart';
 
 abstract class ParserError extends Error {
   final String? message;
@@ -60,11 +60,11 @@ class MalKeyword implements MalType {
 }
 
 class MalString implements MalType {
-  final String _val;
-  MalString(String str) : _val = str;
+  final String val;
+  MalString(String str) : val = str;
 
   @override
-  String toStr() => '"${_val.toPrintable()}"';
+  String toStr() => '"${val.toPrintable()}"';
 }
 
 extension type const Parentheses._((String, String) p) {
@@ -118,9 +118,6 @@ class MalList extends ListMixin<MalType> implements MalType {
 
   @override
   void add(MalType element) => _inner.add(element);
-
-  @override
-  MalType get first => _inner.first;
 
   List<MalType> get args => _inner.sublist(1);
 }
@@ -187,17 +184,43 @@ class MalSymbol extends MalType {
   String toStr() => name;
 }
 
+class MalSymbolNotFound extends MalType {
+  final String name;
+  MalSymbolNotFound(this.name);
+  @override
+  String toStr() => "'{$name} not found";
+}
+
 class MalFunction extends MalType {
   final Function fn;
   MalFunction(this.fn);
   @override
   String toStr() => fn.toString();
 
-  MalType call(List<MalType> args) {
-    if (fn is int Function(int, int) && args.length == 2) {
-      return MalInt(
-        Function.apply(fn, args.map((e) => (e as MalInt).val).toList()),
-      );
+  MalType call(List<MalType> args, [Env? env]) {
+    if (fn is int Function(Env, MalType, MalType) && args.length == 2) {
+      try {
+        return MalInt(Function.apply(fn, [env, ...args]));
+      } catch (e) {
+        print("error when run fn `$fn`");
+        rethrow;
+      }
+    }
+    throw UnimplementedError(
+      'funcion type ${fn.runtimeType} is not implemented',
+    );
+  }
+}
+
+class MalMacroFunction extends MalType {
+  final Function fn;
+  MalMacroFunction(this.fn);
+  @override
+  String toStr() => fn.toString();
+
+  MalType call(List<MalType> args, Env env) {
+    if (fn is MalType Function(List<MalType> args, Env env)) {
+      return fn(args, env);
     }
     throw UnimplementedError(
       'funcion type ${fn.runtimeType} is not implemented',
