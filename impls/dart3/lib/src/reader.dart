@@ -73,7 +73,6 @@ MalType readList(Reader reader, ParenthesesType p) {
     .round => MalList(),
     .square => MalVector(),
     .curly => MalMap(),
-    _ => throw UnsupportedError(''),
   };
   bool isKey = true;
   String key = '';
@@ -97,8 +96,6 @@ MalType readList(Reader reader, ParenthesesType p) {
           (list as MalMap)[key] = readForm(reader);
         }
         break;
-      default:
-        throw UnsupportedError('');
     }
     isKey = !isKey;
   }

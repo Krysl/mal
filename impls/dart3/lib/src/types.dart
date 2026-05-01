@@ -23,6 +23,10 @@ class UnbalancedBracketsError extends ParserError {
   String get message => '(unbalanced) ${super.message}'; // make test happy
 }
 
+class KeyNotFoundError extends ParserError {
+  KeyNotFoundError(super.message);
+}
+
 sealed class MalType {
   String toStr();
 }
@@ -32,6 +36,8 @@ class MalInt implements MalType {
   MalInt(this._val);
   @override
   String toStr() => _val.toString();
+
+  int get val => _val;
 }
 
 class MalNil implements MalType {
@@ -40,10 +46,10 @@ class MalNil implements MalType {
 }
 
 class MalBool implements MalType {
-  final bool _val;
-  MalBool(this._val);
+  final bool val;
+  MalBool(this.val);
   @override
-  String toStr() => _val ? 'true' : 'false';
+  String toStr() => val ? 'true' : 'false';
 }
 
 class MalKeyword implements MalType {
@@ -87,9 +93,9 @@ enum ParenthesesType {
   String get right => p.right;
 }
 
-class MalList extends ListBase<MalType?> implements MalType {
-  MalList([List<MalType>? list]) : _inner = list ?? <MalType?>[];
-  final List<MalType?> _inner;
+class MalList extends ListMixin<MalType> implements MalType {
+  MalList([List<MalType>? list]) : _inner = list ?? <MalType>[];
+  final List<MalType> _inner;
   @override
   int get length => _inner.length;
 
@@ -97,20 +103,31 @@ class MalList extends ListBase<MalType?> implements MalType {
   set length(int newLength) => _inner.length = newLength;
 
   @override
-  MalType operator [](int index) => _inner[index]!;
+  MalType operator [](int index) => _inner[index];
 
   @override
-  void operator []=(int index, MalType? value) => _inner[index] = value;
+  void operator []=(int index, MalType value) => _inner[index] = value;
 
   @override
-  String toStr() => '(${_inner.map((e) => e!.toStr()).join(' ')})';
+  String toStr() => '(${_inner.map((e) => e.toStr()).join(' ')})';
 
   @override
-  Iterable<T> map<T>(T Function(MalType? e) f) => _inner.map(f);
+  Iterable<T> map<T>(T Function(MalType e) f) => _inner.map(f);
+
+  List<MalType> get list => _inner;
+
+  @override
+  void add(MalType element) => _inner.add(element);
+
+  @override
+  MalType get first => _inner.first;
+
+  List<MalType> get args => _inner.sublist(1);
 }
 
-class MalVector extends ListBase<MalType?> implements MalType {
-  final List<MalType?> _inner = <MalType?>[];
+class MalVector extends ListBase<MalType> implements MalType {
+  MalVector([List<MalType>? list]) : _inner = list ?? <MalType>[];
+  final List<MalType> _inner;
   @override
   int get length => _inner.length;
 
@@ -118,16 +135,20 @@ class MalVector extends ListBase<MalType?> implements MalType {
   set length(int newLength) => _inner.length = newLength;
 
   @override
-  MalType operator [](int index) => _inner[index]!;
+  MalType operator [](int index) => _inner[index];
 
   @override
-  void operator []=(int index, MalType? value) => _inner[index] = value;
+  void operator []=(int index, MalType value) => _inner[index] = value;
 
   @override
-  String toStr() => '[${_inner.map((e) => e!.toStr()).join(' ')}]';
+  String toStr() => '[${_inner.map((e) => e.toStr()).join(' ')}]';
 
   @override
-  Iterable<T> map<T>(T Function(MalType? e) f) => _inner.map(f);
+  void add(MalType element) => _inner.add(element);
+  @override
+  Iterable<T> map<T>(T Function(MalType e) f) => _inner.map(f);
+
+  List<MalType> get list => _inner;
 }
 
 // extension type MalVector._(MalList list) {
@@ -137,7 +158,8 @@ class MalVector extends ListBase<MalType?> implements MalType {
 // }
 
 class MalMap with MapMixin<String, MalType> implements MalType {
-  final _innerMap = <String, MalType>{};
+  MalMap([Map<String, MalType>? map]) : _innerMap = map ?? <String, MalType>{};
+  final Map<String, MalType> _innerMap;
   @override
   operator [](Object? key) => _innerMap[key];
 
@@ -163,4 +185,22 @@ class MalSymbol extends MalType {
   MalSymbol(this.name);
   @override
   String toStr() => name;
+}
+
+class MalFunction extends MalType {
+  final Function fn;
+  MalFunction(this.fn);
+  @override
+  String toStr() => fn.toString();
+
+  MalType call(List<MalType> args) {
+    if (fn is int Function(int, int) && args.length == 2) {
+      return MalInt(
+        Function.apply(fn, args.map((e) => (e as MalInt).val).toList()),
+      );
+    }
+    throw UnimplementedError(
+      'funcion type ${fn.runtimeType} is not implemented',
+    );
+  }
 }
