@@ -44,6 +44,7 @@ final strRe2 = RegExp(r'''"(?<string>(?:\\.|[^\\"])*)"?''');
 MalType readAtom(Reader reader) {
   final token = reader.next();
   if (token == null) throw UnexpectedError('unexpecetd EOF');
+
   if (intRe.hasMatch(token)) {
     final val = int.parse(token);
     return MalInt(val);
@@ -53,6 +54,14 @@ MalType readAtom(Reader reader) {
       throw UnbalancedBracketsError('need `"`');
     }
     return MalString(str.escape());
+  } else if (token[0] == ':') {
+    return MalKeyword(token.substring(1));
+  } else if (token == 'nil') {
+    return MalNil();
+  } else if (token == 'true') {
+    return MalBool(true);
+  } else if (token == 'false') {
+    return MalBool(false);
   }
   return MalSymbol(token);
 }

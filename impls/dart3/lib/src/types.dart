@@ -34,6 +34,25 @@ class MalInt implements MalType {
   String toStr() => _val.toString();
 }
 
+class MalNil implements MalType {
+  @override
+  String toStr() => 'nil';
+}
+
+class MalBool implements MalType {
+  final bool _val;
+  MalBool(this._val);
+  @override
+  String toStr() => _val ? 'true' : 'false';
+}
+
+class MalKeyword implements MalType {
+  final String _val;
+  MalKeyword(String val) : _val = '\u029E$val';
+  @override
+  String toStr() => ':${_val.substring(1)}';
+}
+
 class MalString implements MalType {
   final String _val;
   MalString(String str) : _val = str;
