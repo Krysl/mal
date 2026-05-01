@@ -11,14 +11,14 @@ String rep(String str) => print(eval(read(str)));
 
 void main(List<String> args) {
   while (true) {
-    core.print('user> ');
+    stdout.write('user> ');
     final input = stdin.readLineSync();
     if (input == null) break;
     try {
       final output = rep(input);
-      core.print('$output\n');
-    } on UnexpectedError catch (e) {
-      core.print(e.message);
+      stdout.write('$output\n');
+    } on ParserError catch (e) {
+      core.print(e.toString());
     }
   }
 }

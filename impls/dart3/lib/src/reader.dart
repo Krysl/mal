@@ -1,4 +1,6 @@
-import 'package:mal/src/types.dart';
+import 'dart:collection';
+
+import 'package:mal/mal.dart';
 
 class Reader {
   final List<String> _tokens;
@@ -20,8 +22,13 @@ class Reader {
   }
 }
 
+const specialDoubleChRe = r'''~@''';
+const specialSingleChRe = r'''[\[\]{}()'`~^@]''';
+const strRe = r'''"(?:\\.|[^\\"])*"?''';
+const commentRe = r''';.*''';
+const normalSeqRe = r'''[^\s\[\]{}('"`,;)]*''';
 final re = RegExp(
-  r'''[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)''',
+  '[\\s,]*($specialDoubleChRe|$specialSingleChRe|$strRe|$commentRe|$normalSeqRe)',
 );
 
 List<String> tokenize(String str) {
@@ -32,50 +39,89 @@ List<String> tokenize(String str) {
       .toList();
 }
 
-class UnexpectedError extends Error {
-  final String? message;
-  UnexpectedError(this.message);
-  @override
-  String toString() => 'UnexpectedError: $message';
-}
-
 final intRe = RegExp(r'^-?[0-9]+$');
+final strRe2 = RegExp(r'''"(?<string>(?:\\.|[^\\"])*)"?''');
 MalType readAtom(Reader reader) {
   final token = reader.next();
   if (token == null) throw UnexpectedError('unexpecetd EOF');
   if (intRe.hasMatch(token)) {
     final val = int.parse(token);
     return MalInt(val);
+  } else if (token[0] == '"') {
+    final str = strRe2.firstMatch(token)!.namedGroup('string')!;
+    if (str.length == token.length - 1) {
+      throw UnbalancedBracketsError('need `"`');
+    }
+    return MalString(str.escape());
   }
   return MalSymbol(token);
 }
 
-MalList readList(Reader reader) {
-  assert(reader.peek() == '(');
+MalType readList(Reader reader, ParenthesesType p) {
+  assert(reader.peek() == p.left);
   reader.next();
-  final list = MalList();
-
+  final list = switch (p) {
+    .round => MalList(),
+    .square => MalVector(),
+    .curly => MalMap(),
+    _ => throw UnsupportedError(''),
+  };
+  bool isKey = true;
+  String key = '';
   while (true) {
     final peek = reader.peek();
     if (peek == null) throw UnexpectedError('unexpecetd EOF');
-    if (peek == ')') {
+    if (peek == p.right) {
       reader.next();
       break;
     }
-    list.add(readForm(reader));
+    switch (p) {
+      case .round:
+      case .square:
+        (list as ListBase<MalType?>).add(readForm(reader));
+        break;
+      case .curly:
+        if (isKey) {
+          key = peek;
+        } else {
+          reader.next();
+          (list as MalMap)[key] = readForm(reader);
+        }
+        break;
+      default:
+        throw UnsupportedError('');
+    }
+    isKey = !isKey;
   }
-  return list;
+  return list as MalType;
 }
 
+const macros = <String, String>{
+  "'": 'quote',
+  '`': 'quasiquote',
+  '~': 'unquote',
+  '~@': 'splice-unquote',
+  '@': 'deref',
+  '^': 'with-meta',
+};
 MalType readForm(Reader reader) {
-  final token = reader.peek();
-  switch (token) {
-    case '(':
-      return readList(reader);
-    default:
-      // throw UnimplementedError('unexpect token $token');
-      return readAtom(reader);
+  var token = reader.peek();
+  MalList readQuote(String token) {
+    reader.next();
+    if (token == '^') {
+      final a = readForm(reader);
+      final b = readForm(reader);
+      return MalList([MalSymbol(macros[token]!), b, a]);
+    } else {
+      return MalList([MalSymbol(macros[token]!), readForm(reader)]);
+    }
   }
+
+  return switch (token) {
+    '(' || '[' || '{' => readList(reader, ParenthesesType.fromLeft(token!)),
+    "'" || '`' || '~' || '~@' || '@' || '^' => readQuote(token!),
+    _ => readAtom(reader),
+  };
 }
 
 MalType readStr(String str) {
