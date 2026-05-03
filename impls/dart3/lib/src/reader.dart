@@ -48,6 +48,17 @@ class Token {
 
   String get tokenIndicator =>
       start >= 0 ? ('$input\n${' ' * start}^${'~' * (end - start - 1)}') : '';
+
+  @override
+  bool operator ==(covariant Token other) {
+    return str == other.str &&
+        input == other.input &&
+        start == other.start &&
+        end == other.end;
+  }
+
+  @override
+  int get hashCode => Object.hashAll([str, input, start, end]);
 }
 
 List<Token> tokenize(String str) {

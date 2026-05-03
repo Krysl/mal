@@ -11,7 +11,7 @@ MalType eval(MalType ast, Env env) {
     stdout.writeln('${'EVAL:'.toCyan} ${prStr(ast, true)}');
   }
 
-  MalType listCall<T extends ListLike>(ListLike list, Env env, T ast) {
+  MalType listCall(MalListBase list, Env env, MalListBase ast) {
     if (list.isNotEmpty) {
       var fn = eval(list.first, env);
       if (fn is MalFunction) {
@@ -25,7 +25,7 @@ MalType eval(MalType ast, Env env) {
       }
       throw NotCallableError('${fn.toStr()} is not callable');
     } else {
-      return ast.toMalType();
+      return ast;
     }
   }
 
@@ -102,7 +102,7 @@ final replEnv = globalEnv
     }),
     'fn*': MalMacroFunction((List<MalType> args, Env env) {
       final first = args.first;
-      final list = ((first is ListLike ? first : null) as ListLike?)?.list;
+      final list = ((first is MalListBase ? first : null))?.list;
       if (list == null) {
         throw UnsupportedError(
           'fn* not support ${list.runtimeType}($list) as params',
