@@ -1,0 +1,20 @@
+default:
+  @just --choose
+
+about:
+    @awk '/^#/ {print} !/^#/ {exit}' "{{justfile()}}"
+    @echo 'Summarises the purpose of this file.'
+    @echo 'This lists the comment lines of the file until the first line that does not start with a '#' character. Then it lists the targets of the file.'
+    @just --list
+
+alias c := clean-tests
+alias g := gen-tests
+
+clean-tests:
+  cd test/generated && rm -f *
+gen-tests:
+  @dart run tool/generate_all_mal_tests.dart
+
+test-generated FILE='test/generated/step4_if_fn_do_generated_test.dart' TAG='':
+  @if [ -n "{{TAG}}" ]; then dart test "{{FILE}}" -t "{{TAG}}"; else dart test "{{FILE}}"; fi
+

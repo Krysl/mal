@@ -3,20 +3,20 @@ import 'dart:collection';
 import 'package:mal/mal.dart';
 
 class Reader {
-  final List<String> _tokens;
+  final List<Token> _tokens;
   late final int _len;
   Reader(this._tokens) {
     _len = _tokens.length;
   }
   int _index = 0;
 
-  String? next() {
+  Token? next() {
     var token = peek();
     _index++;
     return token;
   }
 
-  String? peek() {
+  Token? peek() {
     if (_index >= _len) return null;
     return _tokens[_index];
   }
@@ -31,11 +31,32 @@ final re = RegExp(
   '[\\s,]*($specialDoubleChRe|$specialSingleChRe|$strRe|$commentRe|$normalSeqRe)',
 );
 
-List<String> tokenize(String str) {
+class Token {
+  Token({
+    required this.str,
+    required this.input,
+    required this.start,
+    required this.end,
+  });
+  String str;
+  String input;
+  final int start;
+  final int end;
+
+  bool hasMatch(RegExp re) => re.hasMatch(str);
+  int get length => str.length;
+
+  String get tokenIndicator =>
+      start >= 0 ? ('$input\n${' ' * start}^${'~' * (end - start - 1)}') : '';
+}
+
+List<Token> tokenize(String str) {
   return re
       .allMatches(str)
-      .map((e) => e.group(1)!)
-      .where((e) => e.isNotEmpty)
+      .map(
+        (e) => Token(str: e.group(1)!, input: str, start: e.start, end: e.end),
+      )
+      .where((e) => e.str.isNotEmpty)
       .toList();
 }
 
@@ -45,29 +66,29 @@ MalType readAtom(Reader reader) {
   final token = reader.next();
   if (token == null) throw UnexpectedError('unexpecetd EOF');
 
-  if (intRe.hasMatch(token)) {
-    final val = int.parse(token);
+  if (intRe.hasMatch(token.str)) {
+    final val = int.parse(token.str);
     return MalInt(val);
-  } else if (token[0] == '"') {
-    final str = strRe2.firstMatch(token)!.namedGroup('string')!;
+  } else if (token.str[0] == '"') {
+    final str = strRe2.firstMatch(token.str)!.namedGroup('string')!;
     if (str.length == token.length - 1) {
       throw UnbalancedBracketsError('need `"`');
     }
     return MalString(str.escape());
-  } else if (token[0] == ':') {
-    return MalKeyword(token.substring(1));
-  } else if (token == 'nil') {
+  } else if (token.str[0] == ':') {
+    return MalKeyword(token.str.substring(1));
+  } else if (token.str == 'nil') {
     return MalNil();
-  } else if (token == 'true') {
+  } else if (token.str == 'true') {
     return MalBool(true);
-  } else if (token == 'false') {
+  } else if (token.str == 'false') {
     return MalBool(false);
   }
   return MalSymbol(token);
 }
 
 MalType readList(Reader reader, ParenthesesType p) {
-  assert(reader.peek() == p.left);
+  assert(reader.peek()!.str == p.left);
   reader.next();
   final list = switch (p) {
     .round => MalList(),
@@ -79,7 +100,7 @@ MalType readList(Reader reader, ParenthesesType p) {
   while (true) {
     final peek = reader.peek();
     if (peek == null) throw UnexpectedError('unexpecetd EOF');
-    if (peek == p.right) {
+    if (peek.str == p.right) {
       reader.next();
       break;
     }
@@ -90,7 +111,7 @@ MalType readList(Reader reader, ParenthesesType p) {
         break;
       case .curly:
         if (isKey) {
-          key = peek;
+          key = peek.str;
         } else {
           reader.next();
           (list as MalMap)[key] = readForm(reader);
@@ -117,15 +138,15 @@ MalType readForm(Reader reader) {
     if (token == '^') {
       final a = readForm(reader);
       final b = readForm(reader);
-      return MalList([MalSymbol(macros[token]!), b, a]);
+      return MalList([MalSymbol.builtin(macros[token]!), b, a]);
     } else {
-      return MalList([MalSymbol(macros[token]!), readForm(reader)]);
+      return MalList([MalSymbol.builtin(macros[token]!), readForm(reader)]);
     }
   }
 
-  return switch (token) {
-    '(' || '[' || '{' => readList(reader, ParenthesesType.fromLeft(token!)),
-    "'" || '`' || '~' || '~@' || '@' || '^' => readQuote(token!),
+  return switch (token?.str) {
+    '(' || '[' || '{' => readList(reader, ParenthesesType.fromLeft(token!.str)),
+    "'" || '`' || '~' || '~@' || '@' || '^' => readQuote(token!.str),
     _ => readAtom(reader),
   };
 }

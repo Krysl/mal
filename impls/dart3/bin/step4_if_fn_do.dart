@@ -1,3 +1,5 @@
+import 'dart:core';
+import 'dart:core' as core show print;
 import 'dart:io';
 
 import 'package:collection/collection.dart';
@@ -9,19 +11,21 @@ MalType eval(MalType ast, Env env) {
     stdout.writeln('${'EVAL:'.toCyan} ${prStr(ast, true)}');
   }
 
-  MalType listCall(MalList list, Env env, MalList ast) {
+  MalType listCall<T extends ListLike>(ListLike list, Env env, T ast) {
     if (list.isNotEmpty) {
       var fn = eval(list.first, env);
       if (fn is MalFunction) {
         return fn.call(list.args.map((e) => eval(e, env)).toList(), env);
       } else if (fn is MalMacroFunction) {
         return fn.call(list.args, env);
+      } else if (fn is MalClosure) {
+        return fn.call(list.args.map((e) => eval(e, env)).toList());
       } else if (fn is MalSymbolNotFound) {
         throw fn.makeError();
       }
       throw NotCallableError('${fn.toStr()} is not callable');
     } else {
-      return ast;
+      return ast.toMalType();
     }
   }
 
@@ -46,8 +50,8 @@ int evalToInt(MalType a, Env env) {
   return (val as MalInt).val;
 }
 
-final replEnv = Env(
-  data: {
+final replEnv = globalEnv
+  ..addAll({
     '+': MalFunction(
       (Env env, MalType a, MalType b) => evalToInt(a, env) + evalToInt(b, env),
     ),
@@ -83,8 +87,38 @@ final replEnv = Env(
       }
       return eval(args[1], newEnv);
     }),
-  },
-);
+    'do': MalMacroFunction((List<MalType> args, Env env) {
+      return args.map((e) => eval(e, env)).toList().last;
+    }),
+    'if': MalMacroFunction((List<MalType> args, Env env) {
+      final br = eval(args.first, env);
+      if (br is! MalNil && !(br is MalBool && br.val == false)) {
+        return eval(args[1], env);
+      } else if (args.length > 2) {
+        return eval(args[2], env);
+      } else {
+        return MalNil();
+      }
+    }),
+    'fn*': MalMacroFunction((List<MalType> args, Env env) {
+      final first = args.first;
+      final list = ((first is ListLike ? first : null) as ListLike?)?.list;
+      if (list == null) {
+        throw UnsupportedError(
+          'fn* not support ${list.runtimeType}($list) as params',
+        );
+      }
+      final params = List<MalSymbol>.from(list);
+
+      return MalClosure(
+        params,
+        env,
+        (List<MalType> fnArgs) =>
+            eval(args.second, Env(outer: env, binds: params, exprs: fnArgs)),
+      );
+    }),
+    ...ns,
+  });
 String rep(String str) => print(eval(read(str), replEnv));
 
 void main(List<String> args) {
