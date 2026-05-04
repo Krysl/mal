@@ -358,12 +358,21 @@ class MalFunction extends MalType<Function> {
   int get hashCode => val.hashCode;
 }
 
+typedef TCO = (MalType ast, Env? env, bool conti);
+
+extension ToTCO on MalType {
+  TCO toTCO([Env? env, bool cont = false]) => (this, env, cont);
+}
+
 /// without eval args
 class MalMacroFunction extends MalType<Function> {
+  final String debugName;
   Function get fn => super.val;
-  MalMacroFunction(super.val);
+  final bool isTCO;
+  MalMacroFunction(this.debugName, super.val, {bool tco = false}) : isTCO = tco;
+  MalMacroFunction.tco(this.debugName, super.val) : isTCO = true;
   @override
-  String toStr([bool printReadably = false]) => fn.toString();
+  String toStr([bool printReadably = false]) => '$debugName ${fn.toString()}';
 
   MalType call(List<MalType> args, Env env) {
     if (fn is MalType Function(List<MalType> args, Env env)) {
@@ -371,6 +380,15 @@ class MalMacroFunction extends MalType<Function> {
     }
     throw UnimplementedError(
       'funcion type ${fn.runtimeType} is not implemented',
+    );
+  }
+
+  TCO callTCO(List<MalType> args, Env env) {
+    if (fn is TCO Function(List<MalType> args, Env env)) {
+      return fn(args, env);
+    }
+    throw UnimplementedError(
+      'funcion "$debugName" type ${fn.runtimeType} is not implemented for tco',
     );
   }
 
@@ -390,7 +408,8 @@ class MalClosure extends MalType<Function> {
   Function get fn => super.val;
   final List<MalSymbol> params;
   final Env env;
-  MalClosure(this.params, this.env, super.val);
+  final MalType? ast;
+  MalClosure(this.params, this.env, Function fn, [this.ast]) : super(fn);
 
   MalType call(List<MalType> args) {
     if (fn is MalType Function(List<MalType> args)) {

@@ -74,6 +74,18 @@ class Env {
   set debugEval(bool val) => flags['DEBUG-EVAL'] = val;
   bool get debugStr => flags['DEBUG-STR'];
   set debugStr(bool val) => flags['DEBUG-STR'] = val;
+
+  int get depth {
+    int d = 0;
+    var p = outer;
+    while (p != null) {
+      p = p.outer;
+      d++;
+    }
+    return d;
+  }
+  @override
+  String toString() => 'Env($depth)${data.toString()}';
 }
 
 final globalEnv = Env();
