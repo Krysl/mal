@@ -7,33 +7,13 @@ import 'package:mal/mal.dart';
 
 MalType read(String str) => readStr(str);
 MalType eval(MalType ast, Env env) {
+  int loop = 0;
   while (true) {
+    loop++;
     if (env.debugEval) {
-      stdout.writeln('${'EVAL:'.toCyan} ${prStr(ast, true)}');
-    }
-
-    TCO listCall(MalListBase list, Env env, MalListBase ast) {
-      if (list.isNotEmpty) {
-        var fn = eval(list.first, env);
-        if (fn is MalFunction) {
-          return fn
-              .call(list.args.map((e) => eval(e, env)).toList(), env)
-              .toTCO();
-        } else if (fn is MalMacroFunction) {
-          if (fn.isTCO) {
-            return fn.callTCO(list.args, env);
-          } else {
-            return fn.call(list.args, env).toTCO();
-          }
-        } else if (fn is MalClosure) {
-          return fn.call(list.args.map((e) => eval(e, env)).toList()).toTCO();
-        } else if (fn is MalSymbolNotFound) {
-          throw fn.makeError();
-        }
-        throw NotCallableError('${fn.toStr()} is not callable');
-      } else {
-        return (ast, null, false);
-      }
+      stdout.writeln(
+        '${loop == 1 ? 'EVAL:'.toCyan : 'EVAL:'} ${prStr(ast, true)}',
+      );
     }
 
     final (maltype, newEnv, conti) = switch (ast) {
@@ -44,7 +24,62 @@ MalType eval(MalType ast, Env env) {
       final MalMap map => MalMap(
         map.map((k, v) => MapEntry(k, eval(v, env))),
       ).toTCO(),
-      final MalList list => listCall(list, env, ast),
+      final MalList list =>
+        (list.isNotEmpty)
+            ? (switch (list.first) {
+                MalSymbol(name: 'if') => switch (eval(list.second, env)) {
+                  MalNil() || MalBool(val: true) => (list.third, null, true),
+                  _ =>
+                    list.length > 3
+                        ? (list.fourth, null, true)
+                        : (MalNil(), null, true),
+                },
+                MalSymbol(name: 'fn*') =>
+                  list.second is MalListBase
+                      ? ((params) => MalClosure(
+                          params,
+                          env,
+                          (List<MalType> fnArgs) => eval(
+                            list.third,
+                            Env(outer: env, binds: params, exprs: fnArgs),
+                          ),
+                          list.third,
+                        ).toTCO())(
+                          List<MalSymbol>.from(
+                            (list.second as MalListBase).list,
+                          ),
+                        )
+                      : throw UnsupportedError(
+                          'fn* not support ${list.runtimeType}($list) as params',
+                        ),
+                _ => switch (eval(list.first, env)) {
+                  final MalFunction fn =>
+                    fn
+                        .call(list.args.map((e) => eval(e, env)).toList(), env)
+                        .toTCO(),
+                  final MalMacroFunction fn =>
+                    (fn.isTCO)
+                        ? fn.callTCO(list.args, env)
+                        : fn.call(list.args, env).toTCO(),
+                  final MalClosure fn =>
+                    // fn
+                    //     .call(list.args.map((e) => eval(e, env)).toList())
+                    //     .toTCO(),
+                    () {
+                      final args = list.args.map((e) => eval(e, env)).toList();
+                      return (
+                        fn.ast!,
+                        Env(outer: env, binds: fn.params, exprs: args),
+                        true,
+                      );
+                    }(),
+                  final MalSymbolNotFound fn => throw fn.makeError(),
+                  final fn => throw NotCallableError(
+                    '${fn.toStr()} is not callable',
+                  ),
+                },
+              })
+            : (ast, null, false),
       _ => ast.toTCO(),
     };
     if (newEnv != null) env = newEnv;
@@ -53,7 +88,9 @@ MalType eval(MalType ast, Env env) {
       continue;
     }
     if (env.debugEval) {
-      stdout.writeln('${'EVAL:=>'.toCyan} ${prStr(maltype, true)}');
+      stdout.writeln(
+        '${loop == 1 ? 'EVAL=>'.toCyan : 'EVAL=>'} ${prStr(maltype, true)}',
+      );
     }
     return maltype;
   }
@@ -105,40 +142,20 @@ final replEnv = globalEnv
       for (final [key, val] in first.slices(2)) {
         newEnv[(key as MalSymbol).name] = eval(val, newEnv);
       }
-      // return eval(args[1], newEnv);
       return (args.second, newEnv, true);
     }),
     'do': MalMacroFunction.tco('do', (List<MalType> args, Env env) {
       args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList().last;
       return (args.last, null, true);
     }),
-    'if': MalMacroFunction.tco('if', (List<MalType> args, Env env) {
-      final br = eval(args.first, env);
-      if (br is! MalNil && !(br is MalBool && br.val == false)) {
-        return args[1].toTCO(null, true);
-      } else if (args.length > 2) {
-        return args[2].toTCO(null, true);
-      } else {
-        return MalNil().toTCO(null, true);
-      }
-    }),
-    'fn*': MalMacroFunction.tco('fn*', (List<MalType> args, Env env) {
-      final first = args.first;
-      final list = ((first is MalListBase ? first : null))?.list;
-      if (list == null) {
-        throw UnsupportedError(
-          'fn* not support ${list.runtimeType}($list) as params',
-        );
-      }
-      final params = List<MalSymbol>.from(list);
+    'time': MalMacroFunction('time',(List<MalType> args, Env env) {
+      final stopwatch = Stopwatch()..start();
+      final ret = eval(args.first, env);
+      assert(stopwatch.isRunning);
+      stopwatch.stop();
 
-      return MalClosure(
-        params,
-        env,
-        (List<MalType> fnArgs) =>
-            eval(args.second, Env(outer: env, binds: params, exprs: fnArgs)),
-        args.second,
-      ).toTCO();
+      println('time: ${stopwatch.elapsed}');
+      return ret;
     }),
     ...ns,
   });

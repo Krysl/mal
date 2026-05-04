@@ -66,10 +66,11 @@ final replEnv = globalEnv
           (evalToInt(a, env) / evalToInt(b, env)).round(),
     ),
     'def!': MalMacroFunction(
+      'def!',
       (List<MalType> args, Env env) =>
           env[(args[0] as MalSymbol).name] = eval(args[1], env),
     ),
-    'let*': MalMacroFunction((List<MalType> args, Env env) {
+    'let*': MalMacroFunction('let*', (List<MalType> args, Env env) {
       final newEnv = Env(outer: env);
       List<dynamic> first;
       if (args.first is MalList) {
@@ -87,10 +88,10 @@ final replEnv = globalEnv
       }
       return eval(args[1], newEnv);
     }),
-    'do': MalMacroFunction((List<MalType> args, Env env) {
+    'do': MalMacroFunction('do', (List<MalType> args, Env env) {
       return args.map((e) => eval(e, env)).toList().last;
     }),
-    'if': MalMacroFunction((List<MalType> args, Env env) {
+    'if': MalMacroFunction('if', (List<MalType> args, Env env) {
       final br = eval(args.first, env);
       if (br is! MalNil && !(br is MalBool && br.val == false)) {
         return eval(args[1], env);
@@ -100,7 +101,7 @@ final replEnv = globalEnv
         return MalNil();
       }
     }),
-    'fn*': MalMacroFunction((List<MalType> args, Env env) {
+    'fn*': MalMacroFunction('fn*', (List<MalType> args, Env env) {
       final first = args.first;
       final list = ((first is MalListBase ? first : null))?.list;
       if (list == null) {

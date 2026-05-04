@@ -51,6 +51,8 @@ extension MalTypeAs on MalType {
 
 extension Second on List<MalType> {
   MalType get second => this[1];
+  MalType get third => this[2];
+  MalType get fourth => this[3];
 }
 
 class MalInt extends MalType<int> {

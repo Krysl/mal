@@ -62,10 +62,11 @@ final replEnv = Env(
           (evalToInt(a, env) / evalToInt(b, env)).round(),
     ),
     'def!': MalMacroFunction(
+      'def!',
       (List<MalType> args, Env env) =>
           env[(args[0] as MalSymbol).name] = eval(args[1], env),
     ),
-    'let*': MalMacroFunction((List<MalType> args, Env env) {
+    'let*': MalMacroFunction('let*', (List<MalType> args, Env env) {
       final newEnv = Env(outer: env);
       List<dynamic> first;
       if (args.first is MalList) {

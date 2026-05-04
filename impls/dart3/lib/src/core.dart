@@ -22,7 +22,8 @@ final Map<String, MalType> ns = {
     (List<MalType> args, Env env) => MalBool(args.first is MalList),
   ),
   'empty?': MalFunction(
-    (List<MalType> args, Env env) => MalBool((args.first as MalListBase).isEmpty),
+    (List<MalType> args, Env env) =>
+        MalBool((args.first as MalListBase).isEmpty),
   ),
   'count': MalFunction((List<MalType> args, Env env) {
     switch (args.first) {
