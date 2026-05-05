@@ -183,6 +183,7 @@ bool _listCompare(List a, List b) {
 
 abstract class MalListBase extends ListMixin<MalType> implements MalType<List> {
   MalListBase([List<MalType>? list]) : _inner = list ?? <MalType>[];
+  abstract final ParenthesesType type;
   final List<MalType> _inner;
   @override
   int get length => _inner.length;
@@ -198,7 +199,7 @@ abstract class MalListBase extends ListMixin<MalType> implements MalType<List> {
 
   @override
   String toStr([bool printReadably = false]) =>
-      '(${_inner.map((e) => e.toStr(printReadably)).join(' ')})';
+      '${type.left}${_inner.map((e) => e.toStr(printReadably)).join(' ')}${type.right}';
 
   @override
   Iterable<T> map<T>(T Function(MalType e) f) => _inner.map(f);
@@ -235,6 +236,9 @@ class MalList extends MalListBase {
 
   @override
   int get hashCode => throw UnimplementedError();
+
+  @override
+  ParenthesesType get type => .round;
 }
 
 class MalVector extends MalListBase {
@@ -244,6 +248,9 @@ class MalVector extends MalListBase {
 
   @override
   int get hashCode => throw UnimplementedError();
+
+  @override
+  ParenthesesType get type => .square;
 }
 
 class MalMap
@@ -406,13 +413,15 @@ class MalMacroFunction extends MalType<Function> {
   int get hashCode => val.hashCode;
 }
 
-class MalClosure extends MalType<Function> {
-  Function get fn => super.val;
+class MalClosure extends MalType<Function?> {
+  @Deprecated('only for step4')
+  Function get fn => super.val!;
   final List<MalSymbol> params;
   final Env env;
   final MalType? ast;
-  MalClosure(this.params, this.env, Function fn, [this.ast]) : super(fn);
+  MalClosure(this.params, this.env, Function? fn, [this.ast]) : super(fn);
 
+  @Deprecated('only for step4')
   MalType call(List<MalType> args) {
     if (fn is MalType Function(List<MalType> args)) {
       return fn(args);
