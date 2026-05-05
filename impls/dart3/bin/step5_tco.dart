@@ -36,15 +36,8 @@ MalType eval(MalType ast, Env env) {
                 },
                 MalSymbol(name: 'fn*') =>
                   list.second is MalListBase
-                      ? ((params) => MalClosure(
-                          params,
-                          env,
-                          (List<MalType> fnArgs) => eval(
-                            list.third,
-                            Env(outer: env, binds: params, exprs: fnArgs),
-                          ),
-                          list.third,
-                        ).toTCO())(
+                      ? ((params) =>
+                            MalClosure(params, env, null, list.third).toTCO())(
                           List<MalSymbol>.from(
                             (list.second as MalListBase).list,
                           ),
@@ -61,18 +54,15 @@ MalType eval(MalType ast, Env env) {
                     (fn.isTCO)
                         ? fn.callTCO(list.args, env)
                         : fn.call(list.args, env).toTCO(),
-                  final MalClosure fn =>
-                    // fn
-                    //     .call(list.args.map((e) => eval(e, env)).toList())
-                    //     .toTCO(),
-                    () {
-                      final args = list.args.map((e) => eval(e, env)).toList();
-                      return (
-                        fn.ast!,
-                        Env(outer: env, binds: fn.params, exprs: args),
-                        true,
-                      );
-                    }(),
+                  final MalClosure fn => (
+                    fn.ast!,
+                    Env(
+                      outer: env,
+                      binds: fn.params,
+                      exprs: list.args.map((e) => eval(e, env)).toList(),
+                    ),
+                    true,
+                  ),
                   final MalSymbolNotFound fn => throw fn.makeError(),
                   final fn => throw NotCallableError(
                     '${fn.toStr()} is not callable',
@@ -148,12 +138,10 @@ final replEnv = globalEnv
       args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList().last;
       return (args.last, null, true);
     }),
-    'time': MalMacroFunction('time',(List<MalType> args, Env env) {
+    'time': MalMacroFunction('time', (List<MalType> args, Env env) {
       final stopwatch = Stopwatch()..start();
       final ret = eval(args.first, env);
-      assert(stopwatch.isRunning);
       stopwatch.stop();
-
       println('time: ${stopwatch.elapsed}');
       return ret;
     }),
