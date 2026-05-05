@@ -60,6 +60,10 @@ class MalInt extends MalType<int> {
   @override
   String toStr([bool printReadably = false]) => val.toString();
 
+  MalInt operator +(MalInt other) => MalInt(val + other.val);
+  MalInt operator -(MalInt other) => MalInt(val - other.val);
+  MalInt operator *(MalInt other) => MalInt(val * other.val);
+  MalInt operator /(MalInt other) => MalInt(val ~/ other.val);
   @override
   bool operator ==(covariant MalType other) {
     if (other is! MalInt) {
@@ -333,26 +337,18 @@ class MalSymbolNotFound extends MalType<Token> {
   int get hashCode => val.hashCode;
 }
 
-class MalFunction extends MalType<Function> {
-  Function get fn => super.val;
+typedef MalFn<T> = T Function(List<MalType> args, Env env);
+typedef Fn<T extends MalType> = MalFn<T>;
+typedef FnTCO = MalFn<TCO>;
+
+class MalFunction extends MalType<Fn> {
+  Fn get fn => super.val;
   MalFunction(super.val);
   @override
   String toStr([bool printReadably = false]) => fn.toString();
 
   MalType call(List<MalType> args, Env env) {
-    if (fn is int Function(Env, MalType, MalType) && args.length == 2) {
-      try {
-        return MalInt(Function.apply(fn, [env, ...args]));
-      } catch (e) {
-        debugPrint("error when run fn `$fn`");
-        rethrow;
-      }
-    } else if (fn is MalType Function(List<MalType> args, Env env)) {
-      return fn(args, env);
-    }
-    throw UnimplementedError(
-      'funcion type ${fn.runtimeType} is not implemented',
-    );
+    return fn(args, env);
   }
 
   @override
@@ -374,18 +370,25 @@ extension ToTCO on MalType {
 }
 
 /// without eval args
-class MalMacroFunction extends MalType<Function> {
+class MalMacroFunction<T> extends MalType<MalFn<T>> {
   final String debugName;
-  Function get fn => super.val;
+  MalFn<T> get fn => super.val;
   final bool isTCO;
-  MalMacroFunction(this.debugName, super.val, {bool tco = false}) : isTCO = tco;
-  MalMacroFunction.tco(this.debugName, super.val) : isTCO = true;
+  MalMacroFunction._(this.debugName, super.val, {bool tco = false})
+    : isTCO = tco;
+  static MalMacroFunction<R> normal<R extends MalType>(
+    String debugName,
+    Fn<R> val, {
+    bool tco = false,
+  }) => MalMacroFunction<R>._(debugName, val);
+  static MalMacroFunction<TCO> tco(String debugName, FnTCO val) =>
+      ._(debugName, val, tco: true);
   @override
   String toStr([bool printReadably = false]) => '$debugName ${fn.toString()}';
 
-  MalType call(List<MalType> args, Env env) {
-    if (fn is MalType Function(List<MalType> args, Env env)) {
-      return fn(args, env);
+  R call<R extends MalType>(List<MalType> args, Env env) {
+    if (fn is Fn<R>) {
+      return fn(args, env) as R;
     }
     throw UnimplementedError(
       'funcion type ${fn.runtimeType} is not implemented',
@@ -393,8 +396,8 @@ class MalMacroFunction extends MalType<Function> {
   }
 
   TCO callTCO(List<MalType> args, Env env) {
-    if (fn is TCO Function(List<MalType> args, Env env)) {
-      return fn(args, env);
+    if (fn is FnTCO) {
+      return fn(args, env) as TCO;
     }
     throw UnimplementedError(
       'funcion "$debugName" type ${fn.runtimeType} is not implemented for tco',

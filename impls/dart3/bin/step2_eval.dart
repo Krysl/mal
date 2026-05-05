@@ -33,28 +33,31 @@ MalType eval(MalType ast, Env env) {
 
 String print(MalType str) => prStr(str, true);
 
-int evalToInt(MalType a, Env env) {
+MalInt evalToInt(MalType a, Env env) {
   var val = eval(a, env);
   if (val is MalSymbolNotFound) {
     throw val.makeError();
   }
-  return (val as MalInt).val;
+  return (val as MalInt);
 }
 
 final replEnv = Env(
   data: {
     '+': MalFunction(
-      (Env env, MalType a, MalType b) => evalToInt(a, env) + evalToInt(b, env),
+      (List<MalType> args, Env env) =>
+          evalToInt(args.first, env) + evalToInt(args.second, env),
     ),
     '-': MalFunction(
-      (Env env, MalType a, MalType b) => evalToInt(a, env) - evalToInt(b, env),
+      (List<MalType> args, Env env) =>
+          evalToInt(args.first, env) - evalToInt(args.second, env),
     ),
     '*': MalFunction(
-      (Env env, MalType a, MalType b) => evalToInt(a, env) * evalToInt(b, env),
+      (List<MalType> args, Env env) =>
+          evalToInt(args.first, env) * evalToInt(args.second, env),
     ),
     '/': MalFunction(
-      (Env env, MalType a, MalType b) =>
-          (evalToInt(a, env) / evalToInt(b, env)).round(),
+      (List<MalType> args, Env env) =>
+          evalToInt(args.first, env) / evalToInt(args.second, env),
     ),
   },
 );
