@@ -58,13 +58,7 @@ final Map<String, MalType> ns = {
     (List<MalType> args, Env env) =>
         MalBool(args.first.asInt() <= args.second.asInt()),
   ),
-  'not': MalFunction(
-    (List<MalType> args, Env env) => MalBool(switch (args.first) {
-      MalBool(val: final val) => !val,
-      MalNil() => true,
-      MalString() => false,
-      MalInt() => false,
-      _ => throw UnimplementedError(),
-    }),
-  ),
 };
+const preloading = [
+  r'''(def! not (fn* (a) (if a false true)))''', //
+];
