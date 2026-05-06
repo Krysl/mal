@@ -21,8 +21,35 @@ sealed class MalType<T> {
 }
 
 extension MalTypeAs on MalType {
+  @pragma('vm:prefer-inline')
   int asInt() => (this as MalInt).val;
+
+  @pragma('vm:prefer-inline')
   MalInt asMalInt() => this as MalInt;
+
+  @pragma('vm:prefer-inline')
+  MalListBase asMalListBase({String? errMsg}) => this is MalListBase
+      ? this as MalListBase
+      : throw UnsupportedError(
+          errMsg ?? 'unsupported $runtimeType as Let* \'s first arg',
+        );
+  @pragma('vm:prefer-inline')
+  MalListBase? asMalListBaseOrNil({String? errMsg}) => this is MalListBase
+      ? this as MalListBase
+      : (this is MalNil
+            ? null
+            : throw UnsupportedError(
+                errMsg ?? 'unsupported $runtimeType as Let* \'s first arg',
+              ));
+
+  @pragma('vm:prefer-inline')
+  String get malSymbolName => (this as MalSymbol).name;
+
+  @pragma('vm:prefer-inline')
+  String get stringVal => (this as MalString).val;
+
+  @pragma('vm:prefer-inline')
+  bool get isMacro => this is MalClosure && (this as MalClosure).isMacro;
 }
 
 extension Second on List<MalType> {
@@ -465,7 +492,14 @@ class MalClosure extends MalType<Function?> {
   final List<MalSymbol> params;
   final Env env;
   final MalType? ast;
-  MalClosure(this.params, this.env, Function? fn, [this.ast]) : super(fn);
+  final bool isMacro;
+  MalClosure(
+    this.params,
+    this.env,
+    Function? fn, [
+    this.ast,
+    this.isMacro = false,
+  ]) : super(fn);
 
   @Deprecated('only for step4')
   MalType call(List<MalType> args) {
@@ -491,9 +525,15 @@ class MalClosure extends MalType<Function?> {
     }
     return val == other.val &&
         env == other.env &&
+        ast == other.ast &&
+        isMacro == other.isMacro &&
         _listCompare(params, other.params);
   }
 
   @override
   int get hashCode => val.hashCode;
+
+  bool get isNotMacro => !isMacro;
+  MalClosure clone({bool isMacro = false}) =>
+      MalClosure(params, env, fn, ast, isMacro);
 }

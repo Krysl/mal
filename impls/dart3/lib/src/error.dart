@@ -53,3 +53,11 @@ abstract class RuntimeError extends MalError {
 class ArgumentInvalidError extends RuntimeError {
   ArgumentInvalidError(super.message);
 }
+
+class ArrayOutOfBoundsError extends RuntimeError {
+  final int current;
+  final int start;
+  final int end;
+  ArrayOutOfBoundsError(this.current, this.start, this.end)
+    : super('Index($current) out of range[$start,$end]');
+}

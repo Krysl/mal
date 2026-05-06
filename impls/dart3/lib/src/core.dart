@@ -97,9 +97,30 @@ final Map<String, MalType> ns = {
   'cons': MalFunction(
     (List<MalType> args, Env env) => MalList([
       args.first,
-      if (args.length > 1) ...args.second as MalListBase,
+      if (args.length > 1) ...args.second.asMalListBase(),
     ]),
   ),
+  'nth': MalFunction((List<MalType> args, Env env) {
+    var list = args.first.asMalListBase();
+    var index = args.second.asInt();
+    if (index >= list.length) {
+      throw ArrayOutOfBoundsError(index, 0, list.length - 1);
+    }
+    return list[index];
+  }),
+  'first': MalFunction(
+    (List<MalType> args, Env env) => args.first == MalNil()
+        ? MalNil()
+        : args.first.asMalListBase().firstOrNull ?? MalNil(),
+  ),
+  'rest': MalFunction((List<MalType> args, Env env) {
+    var list = args.first.asMalListBaseOrNil();
+    if (list == null || list.length < 2) {
+      return MalList();
+    }
+    var rest = list.sublist(1);
+    return MalList(rest);
+  }),
   'concat': MalFunction(
     (List<MalType> args, Env env) =>
         MalList((List<MalListBase>.from(args)).flattenedToList),
@@ -107,14 +128,14 @@ final Map<String, MalType> ns = {
   'vec': MalFunction(
     (List<MalType> args, Env env) => args.isNotEmpty
         ? (args.first is! MalVector
-              ? MalVector(List<MalType>.from(args.first as MalListBase))
+              ? MalVector(List<MalType>.from(args.first.asMalListBase()))
               : args.first)
         : MalVector(),
   ),
 
   'empty?': MalFunction(
     (List<MalType> args, Env env) =>
-        MalBool((args.first as MalListBase).isEmpty),
+        MalBool(args.first.asMalListBase().isEmpty),
   ),
   'count': MalFunction((List<MalType> args, Env env) {
     switch (args.first) {
@@ -153,7 +174,7 @@ final Map<String, MalType> ns = {
     (List<MalType> args, Env env) => MalString(Directory.current.path),
   ),
   'read-string': MalFunction(
-    (List<MalType> args, Env env) => readStr((args.first as MalString).val),
+    (List<MalType> args, Env env) => readStr(args.first.stringVal),
   ),
   'slurp': MalFunction((List<MalType> args, Env env) {
     if (args.first is! MalString) {
@@ -161,7 +182,7 @@ final Map<String, MalType> ns = {
         '<${args.first.runtimeType}>${args.first.toStr(true)}',
       );
     }
-    var file = File((args.first as MalString).val);
+    var file = File(args.first.stringVal);
     if (!file.existsSync()) {
       throw FileNotFoundError(p.normalize(file.absolute.path));
     }
@@ -195,9 +216,13 @@ final Map<String, MalType> ns = {
 
     return result;
   }),
+  'macro?': MalFunction(
+    (List<MalType> args, Env env) => MalBool(args.first.isMacro),
+  ),
 };
 const preloading = [
   r'''(def! not (fn* (a) (if a false true)))''',
   r'''(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))''',
   r'''(def! *ARGV* (list))''',
+  r'''(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw "odd number of forms to cond")) (cons 'cond (rest (rest xs)))))))''',
 ];
