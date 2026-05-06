@@ -38,32 +38,8 @@ MalType eval(MalType ast, Env env) {
 
 String print(MalType str) => prStr(str, true);
 
-MalInt evalToInt(MalType a, Env env) {
-  var val = eval(a, env);
-  if (val is MalSymbolNotFound) {
-    throw val.makeError();
-  }
-  return (val as MalInt);
-}
-
 final replEnv = Env(
   data: {
-    '+': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) + evalToInt(args.second, env),
-    ),
-    '-': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) - evalToInt(args.second, env),
-    ),
-    '*': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) * evalToInt(args.second, env),
-    ),
-    '/': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) / evalToInt(args.second, env),
-    ),
     'def!': MalMacroFunction.normal(
       'def!',
       (List<MalType> args, Env env) =>
@@ -87,6 +63,7 @@ final replEnv = Env(
       }
       return eval(args[1], newEnv);
     }),
+    ...ns,
   },
 );
 String rep(String str) => print(eval(read(str), replEnv));

@@ -22,6 +22,7 @@ sealed class MalType<T> {
 
 extension MalTypeAs on MalType {
   int asInt() => (this as MalInt).val;
+  MalInt asMalInt() => this as MalInt;
 }
 
 extension Second on List<MalType> {

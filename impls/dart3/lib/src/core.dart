@@ -73,6 +73,22 @@ final Map<String, MalType> ns = {
     (List<MalType> args, Env env) =>
         MalString(args.map((e) => prStr(e, false)).join('')),
   ),
+  '+': MalFunction(
+    (List<MalType> args, Env env) =>
+        args.first.asMalInt() + args.second.asMalInt(),
+  ),
+  '-': MalFunction(
+    (List<MalType> args, Env env) =>
+        args.first.asMalInt() - args.second.asMalInt(),
+  ),
+  '*': MalFunction(
+    (List<MalType> args, Env env) =>
+        args.first.asMalInt() * args.second.asMalInt(),
+  ),
+  '/': MalFunction(
+    (List<MalType> args, Env env) =>
+        args.first.asMalInt() / args.second.asMalInt(),
+  ),
   'list': MalFunction((List<MalType> args, Env env) => MalList(args)),
   'list?': MalFunction(
     (List<MalType> args, Env env) => MalBool(args.first is MalList),
@@ -122,7 +138,9 @@ final Map<String, MalType> ns = {
   ),
   'slurp': MalFunction((List<MalType> args, Env env) {
     if (args.first is! MalString) {
-      throw UnsupportedError('<${args.first.runtimeType}>${args.first.toStr(true)}');
+      throw UnsupportedError(
+        '<${args.first.runtimeType}>${args.first.toStr(true)}',
+      );
     }
     var file = File((args.first as MalString).val);
     if (!file.existsSync()) {

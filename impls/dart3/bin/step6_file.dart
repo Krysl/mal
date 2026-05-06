@@ -110,32 +110,8 @@ MalType eval(MalType ast, Env env) {
 
 String print(MalType str) => prStr(str, true);
 
-MalInt evalToInt(MalType a, Env env) {
-  var val = eval(a, env);
-  if (val is MalSymbolNotFound) {
-    throw val.makeError();
-  }
-  return (val as MalInt);
-}
-
 final replEnv = globalEnv
   ..addAll({
-    '+': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) + evalToInt(args.second, env),
-    ),
-    '-': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) - evalToInt(args.second, env),
-    ),
-    '*': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) * evalToInt(args.second, env),
-    ),
-    '/': MalFunction(
-      (List<MalType> args, Env env) =>
-          evalToInt(args.first, env) / evalToInt(args.second, env),
-    ),
     'def!': MalMacroFunction.normal(
       'def!',
       (List<MalType> args, Env env) =>
@@ -159,10 +135,6 @@ final replEnv = globalEnv
       }
       return (args.second, newEnv, true);
     }),
-    // 'do': MalMacroFunction.tco('do', (List<MalType> args, Env env) {
-    //   args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList();
-    //   return (args.last, null, true);
-    // }),
     'time': MalMacroFunction.normal('time', (List<MalType> args, Env env) {
       final stopwatch = Stopwatch()..start();
       final ret = eval(args.first, env);
