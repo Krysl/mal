@@ -43,13 +43,18 @@ class Env {
             (binds.length == exprs.length ||
                 binds.firstWhereOrNull((e) => e.name == '&') != null),
       );
+      final dep = depth;
       for (var i = 0; i < binds.length; i++) {
         final name = binds[i].name;
         if (name == '&') {
           this[binds[i + 1].name] = MalList(exprs!.sublist(i));
           break;
         }
-        this[name] = exprs![i];
+        final val = exprs![i];
+        this[name] = val;
+        logger.d(
+          '${'  ' * (dep + 1)}bind $name on <${val.runtimeType}>${val.toStr()}',
+        );
       }
     }
     flags = Flags(this);
@@ -58,7 +63,12 @@ class Env {
   void operator []=(String key, MalType val) => data[key] = val;
   MalType? operator [](String key) => data[key] ?? outer?[key];
 
-  void addAll(Map<String, MalType> other) => data.addAll(other);
+  final List<String> _builtinKeys = ['DEBUG-EVAL', 'not', 'load-file'];
+  void addAll(Map<String, MalType> other) {
+    _builtinKeys.addAll(other.keys);
+    data.addAll(other);
+  }
+
   MalType getSymbolVal(MalSymbol symbol) {
     if (symbol.isBuiltin) {
       return symbol;
@@ -84,8 +94,17 @@ class Env {
     }
     return d;
   }
+
   @override
   String toString() => 'Env($depth)${data.toString()}';
+  String showVars(String join) {
+    final joinStr = join;
+    var varMap = data.entries
+        .whereNot((kv) => _builtinKeys.contains(kv.key))
+        .map((kv) => '${kv.key}:${kv.value}')
+        .join(joinStr);
+    return 'Env($depth)${varMap.isNotEmpty ? joinStr : ''}$varMap';
+  }
 }
 
 final globalEnv = Env();

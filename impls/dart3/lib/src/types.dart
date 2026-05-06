@@ -3,35 +3,6 @@ import 'dart:collection';
 import 'package:mal/mal.dart';
 import 'package:meta/meta.dart';
 
-abstract class ParserError extends Error {
-  final String? message;
-  ParserError(this.message);
-  @override
-  String toString() =>
-      (message != null) //
-      ? '$runtimeType: $message'
-      : '$runtimeType';
-}
-
-class UnexpectedError extends ParserError {
-  UnexpectedError(super.message);
-}
-
-class UnbalancedBracketsError extends ParserError {
-  UnbalancedBracketsError([super.message]);
-
-  @override
-  String get message => '(unbalanced) ${super.message}'; // make test happy
-}
-
-class KeyNotFoundError extends ParserError {
-  KeyNotFoundError(super.message);
-}
-
-class NotCallableError extends ParserError {
-  NotCallableError(super.message);
-}
-
 sealed class MalType<T> {
   final T val;
   MalType(this.val);
@@ -43,6 +14,9 @@ sealed class MalType<T> {
   @override
   @mustBeOverridden
   int get hashCode;
+
+  @override
+  String toString() => toStr();
 }
 
 extension MalTypeAs on MalType {
@@ -129,7 +103,7 @@ class MalKeyword extends MalType<String> {
 class MalString extends MalType<String> {
   MalString(super.val)
     : assert(() {
-        debugPrint('make MalString($val)');
+        logger.t('make MalString($val)');
         return true;
       }());
 
@@ -320,8 +294,9 @@ class MalSymbol extends MalType<String> {
 class MalSymbolNotFound extends MalType<Token> {
   MalSymbolNotFound(super.val);
   @override
-  String toStr([bool printReadably = false]) =>
-      "'$name not found\n${super.val.tokenIndicator}";
+  String toStr([bool printReadably = false]) => printReadably
+      ? "'$name not found\n${super.val.tokenIndicator}"
+      : "'$name not found";
   String get name => super.val.str;
   Error makeError() => KeyNotFoundError(toStr());
 
@@ -435,7 +410,7 @@ class MalClosure extends MalType<Function?> {
   }
 
   @override
-  String toStr([bool printReadably = false]) => '#<function>';
+  String toStr([bool printReadably = false]) => '#<function> ${ast?.toStr()}';
 
   @override
   bool operator ==(covariant MalType other) {

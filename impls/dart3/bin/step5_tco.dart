@@ -6,18 +6,21 @@ import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 
 MalType read(String str) => readStr(str);
+int depth = 0;
 MalType eval(MalType ast, Env env) {
+  depth++;
   int loop = 0;
   while (true) {
     loop++;
     if (env.debugEval) {
       stdout.writeln(
-        '${loop == 1 ? 'EVAL:'.toCyan : 'EVAL:'} ${prStr(ast, true)}',
+        '${'  ' * depth}${loop == 1 ? 'EVAL:'.toCyan : 'EVAL:'} ${prStr(ast, true)}\n'
+        '${'  ' * (depth + 1) + ' ' * 40}${env.showVars('\n${'  ' * (depth + 2) + ' ' * 40}')}',
       );
     }
 
     final (maltype, newEnv, conti) = switch (ast) {
-      final MalSymbol symbol => env.getSymbolVal(symbol).toTCO(),
+      final MalSymbol symbol => env.getSymbolVal(symbol).toTCO(null, false),
       MalVector(list: final list) => MalVector(
         list.map((e) => eval(e, env)).toList(),
       ).toTCO(),
@@ -28,16 +31,24 @@ MalType eval(MalType ast, Env env) {
         (list.isNotEmpty)
             ? (switch (list.first) {
                 MalSymbol(name: 'if') => switch (eval(list.second, env)) {
-                  MalNil() || MalBool(val: true) => (list.third, null, true),
-                  _ =>
+                  MalBool(val: true) ||
+                  MalInt() ||
+                  MalString() ||
+                  MalList() ||
+                  MalVector() => (list.third, null, true),
+                  MalNil() || _ =>
                     list.length > 3
                         ? (list.fourth, null, true)
                         : (MalNil(), null, true),
                 },
                 MalSymbol(name: 'fn*') =>
                   list.second is MalListBase
-                      ? ((params) =>
-                            MalClosure(params, env, null, list.third).toTCO())(
+                      ? ((params) => MalClosure(
+                          params,
+                          env,
+                          null,
+                          list.third,
+                        ).toTCO(null, true))(
                           List<MalSymbol>.from(
                             (list.second as MalListBase).list,
                           ),
@@ -57,10 +68,11 @@ MalType eval(MalType ast, Env env) {
                   final MalClosure fn => (
                     fn.ast!,
                     Env(
-                      outer: env,
+                      outer: fn.env,
                       binds: fn.params,
                       exprs: list.args.map((e) => eval(e, env)).toList(),
                     ),
+                    // fn.env,
                     true,
                   ),
                   final MalSymbolNotFound fn => throw fn.makeError(),
@@ -79,9 +91,10 @@ MalType eval(MalType ast, Env env) {
     }
     if (env.debugEval) {
       stdout.writeln(
-        '${loop == 1 ? 'EVAL=>'.toCyan : 'EVAL=>'} ${prStr(maltype, true)}',
+        '${'  ' * depth}${loop == 1 ? 'EVAL=>'.toCyan : 'EVAL=>'} ${prStr(maltype, true)}',
       );
     }
+    depth--;
     return maltype;
   }
 }
@@ -138,7 +151,9 @@ final replEnv = globalEnv
       return (args.second, newEnv, true);
     }),
     'do': MalMacroFunction.tco('do', (List<MalType> args, Env env) {
-      args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList().last;
+      if (args.length > 1) {
+        args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList().last;
+      }
       return (args.last, null, true);
     }),
     'time': MalMacroFunction.normal('time', (List<MalType> args, Env env) {
