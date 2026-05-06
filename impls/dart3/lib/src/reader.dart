@@ -158,6 +158,10 @@ MalType readForm(Reader reader) {
   return switch (token?.str) {
     '(' || '[' || '{' => readList(reader, ParenthesesType.fromLeft(token!.str)),
     "'" || '`' || '~' || '~@' || '@' || '^' => readQuote(token!.str),
+    String s when s.startsWith(';') => () {
+      reader.next();
+      return readForm(reader);
+    }(),
     _ => readAtom(reader),
   };
 }

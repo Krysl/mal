@@ -46,7 +46,10 @@ MalType eval(MalType ast, Env env) {
                       ? ((params) => MalClosure(
                           params,
                           env,
-                          null,
+                          (List<MalType> fnArgs) => eval(
+                            list.third,
+                            Env(outer: env, binds: params, exprs: fnArgs),
+                          ),
                           list.third,
                         ).toTCO(null, true))(
                           List<MalSymbol>.from(
@@ -56,6 +59,13 @@ MalType eval(MalType ast, Env env) {
                       : throw UnsupportedError(
                           'fn* not support ${list.runtimeType}($list) as params',
                         ),
+                MalSymbol(name: 'do') => () {
+                  list
+                      .sublist(1, list.length - 1)
+                      .map((e) => eval(e, env))
+                      .toList();
+                  return (list.last, null, true);
+                }(),
                 _ => switch (eval(list.first, env)) {
                   final MalFunction fn =>
                     fn
@@ -72,7 +82,6 @@ MalType eval(MalType ast, Env env) {
                       binds: fn.params,
                       exprs: list.args.map((e) => eval(e, env)).toList(),
                     ),
-                    // fn.env,
                     true,
                   ),
                   final MalSymbolNotFound fn => throw fn.makeError(),
@@ -91,7 +100,7 @@ MalType eval(MalType ast, Env env) {
     }
     if (env.debugEval) {
       stdout.writeln(
-        '${'  ' * depth}${loop == 1 ? 'EVAL=>'.toCyan : 'EVAL=>'} ${prStr(maltype, true)}',
+        '${'  ' * depth}${loop == 1 ? 'EVAL=>'.toCyan : 'EVAL=>'} ${prStr(ast, true).toYellow}=>${prStr(maltype, true)}',
       );
     }
     depth--;
@@ -150,12 +159,10 @@ final replEnv = globalEnv
       }
       return (args.second, newEnv, true);
     }),
-    'do': MalMacroFunction.tco('do', (List<MalType> args, Env env) {
-      if (args.length > 1) {
-        args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList().last;
-      }
-      return (args.last, null, true);
-    }),
+    // 'do': MalMacroFunction.tco('do', (List<MalType> args, Env env) {
+    //   args.sublist(0, args.length - 1).map((e) => eval(e, env)).toList();
+    //   return (args.last, null, true);
+    // }),
     'time': MalMacroFunction.normal('time', (List<MalType> args, Env env) {
       final stopwatch = Stopwatch()..start();
       final ret = eval(args.first, env);
@@ -164,15 +171,30 @@ final replEnv = globalEnv
       return ret;
     }),
     ...ns,
+    'eval': MalFunction((args, env) => eval(args.first, env.outer ?? env)),
   });
 String rep(String str) => print(eval(read(str), replEnv));
 
 void main(List<String> args) {
   preloading.forEach(rep);
+  if (args.isNotEmpty) {
+    final filePath = args.first;
+    if (args.length > 1) {
+      replEnv['*ARGV*'] = MalList(
+        args.sublist(1).map((e) => MalString(e)).toList(),
+      );
+    }
+    var file = File(filePath);
+    if (file.existsSync()) {
+      rep('(load-file "$filePath")');
+    }
+    return;
+  }
   while (true) {
     stdout.write('user> '.toBlue);
-    final input = stdin.readLineSync();
+    final input = stdin.readLineSync()?.trim();
     if (input == null) break;
+    if (input.isEmpty) continue;
     try {
       final output = rep(input);
       stdout.writeln(output);

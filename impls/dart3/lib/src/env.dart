@@ -70,12 +70,8 @@ class Env {
   }
 
   MalType getSymbolVal(MalSymbol symbol) {
-    if (symbol.isBuiltin) {
-      return symbol;
-    } else {
-      final key = symbol.name;
-      return data[key] ?? outer?[key] ?? MalSymbolNotFound(symbol.token!);
-    }
+    final key = symbol.name;
+    return data[key] ?? outer?[key] ?? MalSymbolNotFound(symbol.token!);
   }
 
   late final Flags flags;

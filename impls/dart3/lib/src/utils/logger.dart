@@ -1,16 +1,25 @@
+import 'dart:io';
+
 import 'package:logger/logger.dart';
+export 'package:logger/logger.dart';
 
 import '../error.dart';
 
-final logger = Logger();
+bool get isTest =>
+    Platform.environment.containsKey('FLUTTER_TEST') ||
+    Platform.environment.containsKey('PUB_ALLOW_ANALYTICS');
+
+final filter = DevelopmentFilter()..level = Level.error;
+final logger = Logger(printer: SimplePrinter(), filter: filter);
 
 final levelNames = Map.fromEntries(
   Level.values.map((e) => MapEntry(e.name, e)),
 );
 
-void setLogLevel(String lv) => Logger.level = getLogLevel(lv);
+void setLogLevel(String lv) => filter.level = getLogLevelFromName(lv);
+Level getLogLevel() => filter.level!;
 
-Level getLogLevel(String lv) {
+Level getLogLevelFromName(String lv) {
   if (levelNames.containsKey(lv)) {
     return levelNames[lv]!;
   } else {
@@ -19,5 +28,3 @@ Level getLogLevel(String lv) {
     );
   }
 }
-
-String currentLogLevel() => Logger.level.name;

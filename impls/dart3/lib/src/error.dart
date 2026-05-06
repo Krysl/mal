@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 abstract class MalError extends Error {
   final String? message;
   MalError(this.message);
@@ -39,7 +41,8 @@ abstract class IOError extends MalError {
 
 class FileNotFoundError extends IOError {
   final String path;
-  FileNotFoundError(this.path) : super('File $path is not found');
+  FileNotFoundError(this.path)
+    : super('File $path is not found (cwd:${p.current})');
 }
 
 /* RuntimeError */

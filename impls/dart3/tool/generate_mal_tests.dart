@@ -50,7 +50,8 @@ void main(List<String> args) {
     p.absolute(options.outputPath ?? _defaultOutputPath(inputPath)),
   );
   final binImport =
-      options.binImport ?? '../bin/${p.basenameWithoutExtension(inputPath)}.dart';
+      options.binImport ??
+      '../bin/${p.basenameWithoutExtension(inputPath)}.dart';
 
   final parseResult = parseMalTests(File(inputPath).readAsStringSync());
 
@@ -77,13 +78,14 @@ void main(List<String> args) {
 void _autoFixEvalCallForLegacySteps(String outputPath) {
   final scriptDir = p.dirname(p.fromUri(Platform.script));
   final dart3Root = p.normalize(p.join(scriptDir, '..'));
-  final outputForAnalyze = p.relative(outputPath, from: dart3Root).replaceAll('\\', '/');
+  final outputForAnalyze = p
+      .relative(outputPath, from: dart3Root)
+      .replaceAll('\\', '/');
 
-  final analyzeResult = Process.runSync(
-    'dart',
-    ['analyze', outputForAnalyze],
-    workingDirectory: dart3Root,
-  );
+  final analyzeResult = Process.runSync('dart', [
+    'analyze',
+    outputForAnalyze,
+  ], workingDirectory: dart3Root);
   final analyzeOutput = '${analyzeResult.stdout}\n${analyzeResult.stderr}';
 
   final hasExtraPositional = analyzeOutput.contains(
@@ -107,11 +109,10 @@ void _autoFixEvalCallForLegacySteps(String outputPath) {
   final after = before.replaceAll(replacementPattern, 'eval(read(f))');
   file.writeAsStringSync(after);
 
-  final verifyResult = Process.runSync(
-    'dart',
-    ['analyze', outputForAnalyze],
-    workingDirectory: dart3Root,
-  );
+  final verifyResult = Process.runSync('dart', [
+    'analyze',
+    outputForAnalyze,
+  ], workingDirectory: dart3Root);
   final verifyOutput = '${verifyResult.stdout}\n${verifyResult.stderr}';
   final stillHasExtraPositional = verifyOutput.contains(
     'Too many positional arguments: 1 expected, but 2 found.',
@@ -119,7 +120,8 @@ void _autoFixEvalCallForLegacySteps(String outputPath) {
   final stillHasUndefinedReplEnv = verifyOutput.contains(
     "Undefined name 'replEnv'.",
   );
-  final stillHasSameErrors = stillHasExtraPositional || stillHasUndefinedReplEnv;
+  final stillHasSameErrors =
+      stillHasExtraPositional || stillHasUndefinedReplEnv;
 
   if (!stillHasSameErrors) {
     stdout.writeln('Auto-fixed eval/replEnv call mismatch in $outputPath');
@@ -177,7 +179,9 @@ ParseResult parseMalTests(String source) {
     }
 
     if (line.startsWith(';')) {
-      throw FormatException('Unexpected comment syntax at line $lineNumber: $line');
+      throw FormatException(
+        'Unexpected comment syntax at line $lineNumber: $line',
+      );
     }
 
     final groupTitle = normalizeGroupTitle(pendingComments);
@@ -276,43 +280,55 @@ String renderTestFile(
   required String binImport,
 }) {
   final sourceRelative = p.posix.normalize(
-    p.relative(sourceMalPath, from: p.dirname(outputTestPath)).replaceAll('\\', '/'),
+    p
+        .relative(sourceMalPath, from: p.dirname(outputTestPath))
+        .replaceAll('\\', '/'),
   );
 
   final buffer = StringBuffer()
-    ..writeln("import 'package:mal/mal.dart';")
-    ..writeln("import 'package:test/test.dart';")
-    ..writeln("import '$binImport';")
-    ..writeln()
-    ..writeln('// Generated from $sourceRelative.')
-    ..writeln()
-    ..writeln('class _RunResult {')
-    ..writeln('  const _RunResult({required this.stdoutLines, required this.returnValue});')
-    ..writeln()
-    ..writeln('  final List<String> stdoutLines;')
-    ..writeln('  final String returnValue;')
-    ..writeln('}')
-    ..writeln()
-    ..writeln('Future<_RunResult> _runCase(List<String> forms) async {')
-    ..writeln('  clearTestOutput();')
-    ..writeln('  String returnValue = \'nil\';')
-    ..writeln('  final throws = <String>[];')
-    ..writeln('  for (final f in forms) {')
-    ..writeln('    try {')
-    ..writeln('      returnValue = print(eval(read(f), replEnv));')
-    ..writeln('    } catch (e) {')
-    ..writeln('      throws.add(e.toString().replaceAll(\'\\n\', \'\\\\n\'));')
-    ..writeln('    }')
-    ..writeln('  }')
-    ..writeln('  return _RunResult(')
-    ..writeln('    stdoutLines: [...clearTestOutput(), ...throws],')
-    ..writeln('    returnValue: returnValue,')
-    ..writeln('  );')
-    ..writeln('}')
-    ..writeln()
-    ..writeln('void main() {')
-    ..writeln('  setUpAll(setTestMock);');
+    ..writeln('''
+import 'dart:io';
 
+import 'package:mal/mal.dart';
+import 'package:test/test.dart';
+import '$binImport';
+
+// Generated from $sourceRelative.
+
+class _RunResult {
+  const _RunResult({required this.stdoutLines, required this.returnValue});
+
+  final List<String> stdoutLines;
+  final String returnValue;
+}
+
+Future<_RunResult> _runCase(List<String> forms) async {
+  clearTestOutput();
+  String returnValue = 'nil';
+  final throws = <String>[];
+  for (final f in forms) {
+    try {
+      returnValue = print(eval(read(f), replEnv));
+    } catch (e) {
+      throws.add(e.toString().replaceAll('\\n', '\\\\n'));
+    }
+  }
+  return _RunResult(
+    stdoutLines: [...clearTestOutput(), ...throws],
+    returnValue: returnValue,
+  );
+}
+
+void main() {
+  setUpAll(() {
+    try {
+      preloading.forEach(rep);
+    } catch (e) {
+      stderr.writeln(e);
+    }
+    setTestMock();
+  });
+''');
   for (final group in result.groups) {
     buffer.writeln('  group(${_dartString(group.title)}, () {');
     for (final testCase in group.tests) {
@@ -336,12 +352,15 @@ String renderTestFile(
       final formsList = '[${allForms.map(_dartString).join(', ')}]';
       buffer.writeln('      final result = await _runCase($formsList);');
       if (testCase.expectedStdout.isNotEmpty) {
-        if (testCase.expectedReturn.isEmpty && testCase.expectedStdout.length == 1) {
+        if (testCase.expectedReturn.isEmpty &&
+            testCase.expectedStdout.length == 1) {
           final regex = '^${testCase.expectedStdout[0]}\u0000'.replaceAll(
             '\u0000',
             r'$',
           );
-          final regexContainsNewline = testCase.expectedStdout[0].contains(r'\n');
+          final regexContainsNewline = testCase.expectedStdout[0].contains(
+            r'\n',
+          );
           buffer.writeln('      if (result.stdoutLines.isEmpty) {');
           if (!regexContainsNewline) {
             buffer.writeln(
@@ -353,7 +372,9 @@ String renderTestFile(
           buffer.writeln(
             '        expect(result.stdoutLines[0], matches(RegExp(${_dartString(regex)})));',
           );
-          buffer.writeln('        expect(result.returnValue, equals(${_dartString('nil')}));');
+          buffer.writeln(
+            '        expect(result.returnValue, equals(${_dartString('nil')}));',
+          );
           buffer.writeln('      }');
         } else {
           buffer.writeln(
@@ -408,9 +429,9 @@ String _dartString(String value) {
 
 class _ArgParser {
   _ArgParser(List<String> args)
-  : outputPath = _readFlagValue(args, '--output'),
-        binImport = _readFlagValue(args, '--bin-import'),
-        inputPath = _readInputPath(args);
+    : outputPath = _readFlagValue(args, '--output'),
+      binImport = _readFlagValue(args, '--bin-import'),
+      inputPath = _readInputPath(args);
 
   final String? outputPath;
   final String? binImport;
