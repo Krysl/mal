@@ -18,6 +18,7 @@ final levelNames = Map.fromEntries(
 
 void setLogLevel(String lv) => filter.level = getLogLevelFromName(lv);
 Level getLogLevel() => filter.level!;
+bool get shouldLog => filter.level! <= Level.debug;
 
 Level getLogLevelFromName(String lv) {
   if (levelNames.containsKey(lv)) {

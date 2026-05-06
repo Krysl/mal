@@ -32,14 +32,14 @@ final re = RegExp(
 );
 
 class Token {
-  Token({
+  const Token({
     required this.str,
     required this.input,
     required this.start,
     required this.end,
   });
-  String str;
-  String input;
+  final String str;
+  final String input;
   final int start;
   final int end;
 

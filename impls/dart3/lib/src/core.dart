@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 import 'package:path/path.dart' as p;
 
@@ -93,6 +94,24 @@ final Map<String, MalType> ns = {
   'list?': MalFunction(
     (List<MalType> args, Env env) => MalBool(args.first is MalList),
   ),
+  'cons': MalFunction(
+    (List<MalType> args, Env env) => MalList([
+      args.first,
+      if (args.length > 1) ...args.second as MalListBase,
+    ]),
+  ),
+  'concat': MalFunction(
+    (List<MalType> args, Env env) =>
+        MalList((List<MalListBase>.from(args)).flattenedToList),
+  ),
+  'vec': MalFunction(
+    (List<MalType> args, Env env) => args.isNotEmpty
+        ? (args.first is! MalVector
+              ? MalVector(List<MalType>.from(args.first as MalListBase))
+              : args.first)
+        : MalVector(),
+  ),
+
   'empty?': MalFunction(
     (List<MalType> args, Env env) =>
         MalBool((args.first as MalListBase).isEmpty),

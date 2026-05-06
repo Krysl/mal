@@ -6,7 +6,7 @@ import 'package:meta/meta.dart';
 
 sealed class MalType<T> {
   final T val;
-  MalType(this.val);
+  const MalType(this.val);
   String toStr([bool printReadably = false]);
   @override
   @mustBeOverridden
@@ -305,7 +305,7 @@ class MalMap
 
   @override
   String toStr([bool printReadably = false]) {
-    if (getLogLevel() <= Level.debug) {
+    if (shouldLog) {
       final maxKeyLength = _innerMap.keys.map((e) => e.length).max;
       return '{\n\t${_innerMap.entries.map((kv) => '${kv.key}${' ' * (maxKeyLength - kv.key.length)}: ${kv.value.toStr(printReadably)}').join('\n\t')}\n}';
     } else {
@@ -332,7 +332,7 @@ class MalSymbol extends MalType<String> {
   String get name => super.val;
   final Token? token;
   MalSymbol(this.token) : super(token!.str);
-  MalSymbol.builtin(super.val) : token = null;
+  const MalSymbol.builtin(super.val) : token = null;
   @override
   String toStr([bool printReadably = false]) => name;
 
@@ -348,7 +348,18 @@ class MalSymbol extends MalType<String> {
   int get hashCode => Object.hashAll([MalSymbol, val]);
 }
 
-class MalSymbolNotFound extends MalType<Token> {
+extension ToSymbolBuiltin on String {
+  MalSymbol get sym => MalSymbol.builtin(this);
+}
+
+const quote = MalSymbol.builtin('quote');
+const unquote = MalSymbol.builtin('unquote');
+const concat = MalSymbol.builtin('concat');
+const cons = MalSymbol.builtin('cons');
+const spliceUnquote = MalSymbol.builtin('splice-unquote');
+const vec = MalSymbol.builtin('vec');
+
+final class MalSymbolNotFound extends MalType<Token> {
   MalSymbolNotFound(super.val);
   @override
   String toStr([bool printReadably = false]) => printReadably
