@@ -1,5 +1,7 @@
 import 'package:path/path.dart' as p;
 
+import 'types.dart';
+
 abstract class MalError extends Error {
   final String? message;
   MalError(this.message);
@@ -8,6 +10,13 @@ abstract class MalError extends Error {
       (message != null) //
       ? '$runtimeType: $message'
       : '$runtimeType';
+}
+
+class CustomThrowError extends MalError {
+  final MalType err;
+  CustomThrowError(this.err):super(err.toStr());
+  @override
+  String toString() => 'Error: $message';
 }
 
 /* ParserError */

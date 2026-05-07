@@ -28,34 +28,51 @@ extension MalTypeAs on MalType {
   MalInt asMalInt() => this as MalInt;
 
   @pragma('vm:prefer-inline')
+  MalString asMalString() => this as MalString;
+
+  @pragma('vm:prefer-inline')
   MalListBase asMalListBase({String? errMsg}) => this is MalListBase
       ? this as MalListBase
-      : throw UnsupportedError(
-          errMsg ?? 'unsupported $runtimeType as Let* \'s first arg',
+      : throw ArgumentError(
+          errMsg ?? 'unsupported $runtimeType to MalListBase',
         );
   @pragma('vm:prefer-inline')
   MalListBase? asMalListBaseOrNil({String? errMsg}) => this is MalListBase
       ? this as MalListBase
       : (this is MalNil
             ? null
-            : throw UnsupportedError(
-                errMsg ?? 'unsupported $runtimeType as Let* \'s first arg',
+            : throw ArgumentError(
+                errMsg ?? 'unsupported $runtimeType to MalListBase or Nil',
               ));
 
   @pragma('vm:prefer-inline')
   String get malSymbolName => (this as MalSymbol).name;
 
   @pragma('vm:prefer-inline')
-  String get stringVal => (this as MalString).val;
+  String get stringVal => switch (this) {
+    final MalString str => str.val,
+    final MalKeyword kw => ':${kw.val.substring(1)}',
+    _ => throw ArgumentError(''),
+  };
 
   @pragma('vm:prefer-inline')
   bool get isMacro => this is MalClosure && (this as MalClosure).isMacro;
 }
 
 extension Second on List<MalType> {
+  @pragma('vm:prefer-inline')
   MalType get second => this[1];
+  @pragma('vm:prefer-inline')
   MalType get third => this[2];
+  @pragma('vm:prefer-inline')
   MalType get fourth => this[3];
+  @pragma('vm:prefer-inline')
+  MalList toMalList() => MalList(this);
+}
+
+extension ToMalList on Iterable<MalType> {
+  @pragma('vm:prefer-inline')
+  MalList toMalList() => MalList(toList());
 }
 
 class MalInt extends MalType<int> {
@@ -80,7 +97,7 @@ class MalInt extends MalType<int> {
 }
 
 class MalNil extends MalType<Null> {
-  MalNil() : super(null);
+  const MalNil() : super(null);
   @override
   String toStr([bool printReadably = false]) => 'nil';
   @override
@@ -88,12 +105,14 @@ class MalNil extends MalType<Null> {
     if (other.runtimeType != MalNil) {
       return false;
     }
-    return val == other.val;
+    return true;
   }
 
   @override
-  int get hashCode => val.hashCode;
+  int get hashCode => (MalNil).hashCode;
 }
+
+const nil = MalNil();
 
 class _MalTypeRef {
   _MalTypeRef(this.ref);
@@ -311,10 +330,11 @@ class MalVector extends MalListBase {
 }
 
 class MalMap
-    with MapMixin<String, MalType>
-    implements MalType<Map<String, MalType>> {
-  MalMap([Map<String, MalType>? map]) : _innerMap = map ?? <String, MalType>{};
-  final Map<String, MalType> _innerMap;
+    with MapMixin<MalType, MalType>
+    implements MalType<Map<MalType, MalType>> {
+  MalMap([Map<MalType, MalType>? map])
+    : _innerMap = map ?? <MalType, MalType>{};
+  final Map<MalType, MalType> _innerMap;
   @override
   operator [](Object? key) => _innerMap[key];
 
@@ -325,7 +345,7 @@ class MalMap
   void clear() => _innerMap.clear();
 
   @override
-  Iterable<String> get keys => _innerMap.keys;
+  Iterable<MalType> get keys => _innerMap.keys;
 
   @override
   remove(Object? key) => _innerMap.remove(key);
@@ -333,22 +353,37 @@ class MalMap
   @override
   String toStr([bool printReadably = false]) {
     if (shouldLog) {
-      final maxKeyLength = _innerMap.keys.map((e) => e.length).max;
-      return '{\n\t${_innerMap.entries.map((kv) => '${kv.key}${' ' * (maxKeyLength - kv.key.length)}: ${kv.value.toStr(printReadably)}').join('\n\t')}\n}';
+      final maxKeyLength = _innerMap.keys.map((e) => e.toStr().length).max;
+      return '{\n\t${_innerMap.entries.map((kv) => '${kv.key}${' ' * (maxKeyLength - kv.key.toStr().length)}: ${kv.value.toStr(printReadably)}').join('\n\t')}\n}';
     } else {
-      return '{${_innerMap.entries.map((kv) => '${kv.key} ${kv.value.toStr(printReadably)}').join(' ')}}';
+      return '{${_innerMap.entries.map((kv) => '${kv.key.toStr(true)} ${kv.value.toStr(printReadably)}').join(' ')}}';
     }
   }
 
   @override
-  Map<String, MalType> get val => _innerMap;
+  Map<MalType, MalType> get val => _innerMap;
 
   @override
   bool operator ==(covariant MalType other) {
     if (other is! MalMap) {
       return false;
     }
-    return val == other.val;
+    if (isEmpty && other.isEmpty) {
+      return true;
+    }
+    if (length != other.length) {
+      return false;
+    }
+    for (final MapEntry(:key, :value) in entries) {
+      if (other.containsKey(key)) {
+        if (value != other[key]) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -410,6 +445,7 @@ final class MalSymbolNotFound extends MalType<Token> {
 typedef MalFn<T> = T Function(List<MalType> args, Env env);
 typedef Fn<T extends MalType> = MalFn<T>;
 typedef FnTCO = MalFn<TCO>;
+typedef MalClosureFn = MalType Function(List<MalType> args);
 
 class MalFunction extends MalType<Fn> {
   Fn get fn => super.val;
@@ -486,9 +522,9 @@ class MalMacroFunction<T> extends MalType<MalFn<T>> {
   int get hashCode => val.hashCode;
 }
 
-class MalClosure extends MalType<Function?> {
+class MalClosure extends MalType<MalClosureFn?> {
   @Deprecated('only for step4')
-  Function? get fn => super.val;
+  MalClosureFn? get fn => super.val;
   final List<MalSymbol> params;
   final Env env;
   final MalType? ast;
@@ -496,7 +532,7 @@ class MalClosure extends MalType<Function?> {
   MalClosure(
     this.params,
     this.env,
-    Function? fn, [
+    MalClosureFn? fn, [
     this.ast,
     this.isMacro = false,
   ]) : super(fn);
@@ -506,7 +542,7 @@ class MalClosure extends MalType<Function?> {
     // if (fn != null) {
 
     // } else
-    if (fn is MalType Function(List<MalType> args)) {
+    if (fn is MalClosureFn) {
       return fn!(args);
     }
     throw UnimplementedError(

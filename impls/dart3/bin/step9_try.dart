@@ -84,7 +84,7 @@ MalType eval(MalType ast, Env env) {
                           list.third,
                         ).toTCO(null, true))(
                           List<MalSymbol>.from(
-                            (list.second as MalListBase).list,
+                            list.second.asMalListBase().list,
                           ),
                         )
                       : throw UnsupportedError(
@@ -105,6 +105,39 @@ MalType eval(MalType ast, Env env) {
                   logger.d('eval ${ret.toStr(true)}');
                   return (ret, null, true);
                 }(),
+                MalSymbol(name: 'defmacro!') => () {
+                  final closure = eval(list.third, env) as MalClosure;
+                  var macro = closure.clone(isMacro: true);
+                  env[list.second.malSymbolName] = macro;
+                  return (macro, null, false);
+                }(),
+                MalSymbol(name: 'try*') => () {
+                  try {
+                    final ret = eval(list.second, env);
+                    return (ret, null, false);
+                  } on MalError catch (e) {
+                    if (list.length < 3) {
+                      rethrow;
+                    }
+                    final catcher = list.third.asMalListBase();
+                    if (catcher.first.malSymbolName != 'catch*') {
+                      throw ArgumentInvalidError(
+                        'try*/catch* need a form like "(try* A (catch* B C))"',
+                      );
+                    }
+
+                    final newEnv = Env(outer: env);
+                    newEnv[catcher.second.malSymbolName] =
+                        (e is CustomThrowError)
+                        ? e.err
+                        : MalString(e.message ?? e.toString());
+                    final errProcess = eval(catcher.third, newEnv);
+                    return (errProcess, null, false);
+                  }
+                }(),
+                MalSymbol(name: 'throw') => throw CustomThrowError(
+                  eval(list.second, env),
+                ),
                 _ => switch (eval(list.first, env)) {
                   final MalFunction fn =>
                     fn
@@ -114,13 +147,25 @@ MalType eval(MalType ast, Env env) {
                     (fn.isTCO)
                         ? fn.callTCO(list.args, env)
                         : fn.call(list.args, env).toTCO(),
-                  final MalClosure fn => (
+                  final MalClosure fn when fn.isNotMacro => (
                     fn.ast!,
                     Env(
                       outer: fn.env,
                       binds: fn.params,
                       exprs: list.args.map((e) => eval(e, env)).toList(),
                     ),
+                    true,
+                  ),
+                  final MalClosure fn => (
+                    eval(
+                      fn.ast!,
+                      Env(
+                        outer: fn.env,
+                        binds: fn.params,
+                        exprs: list.args, //
+                      ),
+                    ),
+                    env,
                     true,
                   ),
                   final MalSymbolNotFound fn => throw fn.makeError(),
@@ -152,23 +197,16 @@ final replEnv = globalEnv
     'def!': MalMacroFunction.normal(
       'def!',
       (List<MalType> args, Env env) =>
-          env[(args[0] as MalSymbol).name] = eval(args[1], env),
+          env[args[0].malSymbolName] = eval(args[1], env),
     ),
     'let*': MalMacroFunction.tco('let*', (List<MalType> args, Env env) {
       final newEnv = Env(outer: env);
-      List<dynamic> first;
-      if (args.first is MalList) {
-        first = (args.first as MalList);
-      } else if (args.first is MalVector) {
-        first = (args.first as MalVector);
-      } else {
-        throw UnsupportedError(
-          'unsupported ${args.first.runtimeType} as Let* \'s first arg',
-        );
-      }
+      MalListBase first = args.first.asMalListBase(
+        errMsg: 'unsupported ${args.first.runtimeType} as Let* \'s first arg',
+      );
 
       for (final [key, val] in first.slices(2)) {
-        newEnv[(key as MalSymbol).name] = eval(val, newEnv);
+        newEnv[key.malSymbolName] = eval(val, newEnv);
       }
       return (args.second, newEnv, true);
     }),

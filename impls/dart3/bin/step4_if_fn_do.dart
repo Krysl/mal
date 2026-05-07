@@ -102,7 +102,7 @@ final replEnv = globalEnv
 String rep(String str) => print(eval(read(str), replEnv));
 
 void main(List<String> args) {
-  preloading.forEach(rep);
+  replEnv.preLoading(rep);
   while (true) {
     stdout.write('user> '.toBlue);
     final input = stdin.readLineSync();

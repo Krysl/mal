@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 String getName(MalType v) {
   switch (v) {
     case MalString(val: final str):
+    case MalSymbol(name: final str):
     case MalSymbolNotFound(name: final str):
       return (str);
     default:
@@ -28,7 +29,10 @@ int getInt(MalType v) {
 }
 
 final Map<String, MalType> ns = {
-  'loglevel': MalFunction((List<MalType> args, Env env) {
+  'loglevel': MalMacroFunction.normal<MalType>('loglevel', (
+    List<MalType> args,
+    Env env,
+  ) {
     if (args.isEmpty) {
       return MalString(Logger.level.name);
     }
@@ -50,9 +54,8 @@ final Map<String, MalType> ns = {
     while (dep > 0 && p.outer != null) {
       p = p.outer!;
     }
-    final ret = p.data;
 
-    return MalMap(ret);
+    return MalMap(p.data.map((k, v) => MapEntry(MalString(k), v)));
   }),
   'type': MalFunction(
     (List<MalType> args, Env env) =>
@@ -192,9 +195,6 @@ final Map<String, MalType> ns = {
     'atom',
     (List<MalType> args, Env env) => MalAtom(args.first),
   ),
-  'atom?': MalFunction(
-    (List<MalType> args, Env env) => MalBool(args.first is MalAtom),
-  ),
   'deref': MalFunction(
     (List<MalType> args, Env env) => (args.first as MalAtom).val.ref,
   ),
@@ -203,24 +203,86 @@ final Map<String, MalType> ns = {
   }),
   'swap!': MalFunction((List<MalType> args, Env env) {
     var atom = (args.first as MalAtom);
-    final fn = args.second;
-    var args2 = [atom.ref, ...args.sublist(2)];
-    final result = switch (fn) {
-      MalClosure() => fn.call(args2),
-      MalFunction() => fn.call(args2, env),
-      _ => throw UnimplementedError(
-        'fn type ${fn.runtimeType} is not implemented.',
-      ),
-    };
-    atom.ref = result;
-
-    return result;
+    return atom.ref = call(args.second, [atom.ref, ...args.sublist(2)], env);
   }),
-  'macro?': MalFunction(
-    (List<MalType> args, Env env) => MalBool(args.first.isMacro),
+  'apply': MalFunction(
+    (args, env) => call(
+      args.first,
+      args.sublist(1, args.length - 1)..addAll(args.last.asMalListBase()),
+      env,
+    ),
   ),
+  'map': MalFunction(
+    (args, env) => MalList(
+      args.second
+          .asMalListBase()
+          .map((e) => call(args.first, [e], env))
+          .toList(),
+    ),
+  ),
+  'throw': MalFunction((args, env) => throw CustomThrowError(args.first)),
+  'atom?': isType<MalAtom>(),
+  'macro?': isType<MalClosure>((e) => e.isMacro),
+  'symbol': MalFunction((args, env) => args.first.stringVal.sym),
+  'symbol?': isType<MalSymbol>(),
+  'nil?': isType<MalNil>(),
+  'true?': isType<MalBool>((e) => e.val),
+  'false?': isType<MalBool>((e) => !e.val),
+  'keyword': MalFunction((args, env) => MalKeyword(args.first.stringVal)),
+  'keyword?': isType<MalKeyword>(),
+  'sequential?': isType<MalListBase>(),
+  'vector': MalFunction((args, env) => MalVector(args)),
+  'vector?': isType<MalVector>(),
+  'map?': isType<MalMap>(),
+  'hash-map': MalFunction(
+    (args, env) => MalMap(
+      Map.fromEntries(args.slices(2).map((l) => MapEntry(l.first, l.second))),
+    ),
+  ),
+  'assoc': MalFunction(
+    (args, env) => MalMap(
+      Map.from((args.first as MalMap).val)..addEntries(
+        args.sublist(1).slices(2).map((l) => MapEntry(l.first, l.second)),
+      ),
+    ),
+  ),
+  'dissoc': MalFunction((args, env) {
+    var map = Map<MalType, MalType>.from((args.first as MalMap).val);
+    args.sublist(1).forEach(map.remove);
+    return MalMap(map);
+  }),
+  'get': MalFunction((args, env) {
+    if (args.first is MalNil) {
+      return nil;
+    }
+    final map = args.first as MalMap;
+    final key = args.second;
+    if (map.containsKey(key)) {
+      return map[key]!;
+    } else {
+      return MalNil();
+    }
+  }),
+  'contains?': MalFunction(
+    (args, env) => MalBool((args.first as MalMap).containsKey(args.second)),
+  ),
+  'keys': MalFunction((args, env) => (args.first as MalMap).keys.toMalList()),
+  'vals': MalFunction((args, env) => (args.first as MalMap).values.toMalList()),
 };
-const preloading = [
+
+MalType call(MalType fn, List<MalType> args, Env env) => switch (fn) {
+  final MalFunction fn => fn.call(args, env),
+  final MalClosure fn => fn.call(args),
+  _ => throw UnimplementedError(),
+};
+
+MalFunction isType<T extends MalType>([bool Function(T val)? test]) =>
+    MalFunction(
+      (args, env) =>
+          MalBool(args.first is T && (test?.call(args.first as T) ?? true)),
+    );
+
+final preloading = [
   r'''(def! not (fn* (a) (if a false true)))''',
   r'''(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))''',
   r'''(def! *ARGV* (list))''',

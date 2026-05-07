@@ -26,6 +26,8 @@ class Flags {
   }
 }
 
+typedef RepFn = String Function(String str);
+
 class Env {
   final Env? outer;
   final Map<String, MalType> data;
@@ -62,6 +64,8 @@ class Env {
 
   void operator []=(String key, MalType val) => data[key] = val;
   MalType? operator [](String key) => data[key] ?? outer?[key];
+  bool containsKey(String key) =>
+      data.containsKey(key) || (outer?.containsKey(key) ?? false);
 
   final List<String> _builtinKeys = ['DEBUG-EVAL', 'not', 'load-file'];
   void addAll(Map<String, MalType> other) {
@@ -71,7 +75,9 @@ class Env {
 
   MalType getSymbolVal(MalSymbol symbol) {
     final key = symbol.name;
-    return data[key] ?? outer?[key] ?? MalSymbolNotFound(symbol.token!);
+    return data[key] ??
+        outer?[key] ??
+        (throw MalSymbolNotFound(symbol.token!).makeError());
   }
 
   late final Flags flags;
@@ -100,6 +106,16 @@ class Env {
         .map((kv) => '${kv.key}:${kv.value}')
         .join(joinStr);
     return 'Env($depth)${varMap.isNotEmpty ? joinStr : ''}$varMap';
+  }
+
+  void preLoading(RepFn repFn) {
+    for (var line in preloading) {
+      try {
+        repFn(line);
+      } on KeyNotFoundError catch (_) {
+        continue;
+      }
+    }
   }
 }
 

@@ -42,7 +42,6 @@ MalType eval(MalType ast, Env env) {
     loop++;
     if (env.debugEval) {
       final a = shouldLog;
-      // if (loop == 1 || a)
       stdout.writeln(
         '${a ? '  ' * depth : ''}${loop == 1 ? 'EVAL:'.toCyan : 'EVAL:'} ${prStr(ast, true)}',
       );
@@ -197,7 +196,7 @@ final replEnv = globalEnv
 String rep(String str) => print(eval(read(str), replEnv));
 
 void main(List<String> args) {
-  preloading.forEach(rep);
+  replEnv.preLoading(rep);
   if (args.isNotEmpty) {
     final filePath = args.first;
     if (args.length > 1) {

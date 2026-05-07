@@ -107,7 +107,7 @@ MalType readList(Reader reader, ParenthesesType p) {
     .curly => MalMap(),
   };
   bool isKey = true;
-  String key = '';
+  MalType key = nil;
   while (true) {
     final peek = reader.peek();
     if (peek == null) throw UnexpectedError('unexpecetd EOF');
@@ -122,7 +122,12 @@ MalType readList(Reader reader, ParenthesesType p) {
         break;
       case .curly:
         if (isKey) {
-          key = peek.str;
+          final keyStr = peek.str;
+          if (keyStr.startsWith('"') && keyStr.endsWith('"')) {
+            key = MalString(keyStr.substring(1, keyStr.length - 1));
+          } else if (keyStr.startsWith(':')) {
+            key = MalKeyword(keyStr.substring(1));
+          }
         } else {
           reader.next();
           (list as MalMap)[key] = readForm(reader);

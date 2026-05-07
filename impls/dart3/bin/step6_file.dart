@@ -148,7 +148,7 @@ final replEnv = globalEnv
 String rep(String str) => print(eval(read(str), replEnv));
 
 void main(List<String> args) {
-  preloading.forEach(rep);
+  replEnv.preLoading(rep);
   if (args.isNotEmpty) {
     final filePath = args.first;
     if (args.length > 1) {
