@@ -256,8 +256,13 @@ bool _listCompare(List a, List b) {
   return true;
 }
 
-abstract class MalListBase extends ListMixin<MalType>
-    implements MalType<List<MalType>> {
+abstract interface class MalMeta<T> {
+  MalType metadata = nil;
+  T clone();
+}
+
+abstract class MalListBase<C> extends ListMixin<MalType>
+    implements MalType<List<MalType>>, MalMeta<C> {
   MalListBase([List<MalType>? list]) : _inner = list ?? <MalType>[];
   abstract final ParenthesesType type;
   final List<MalType> _inner;
@@ -305,7 +310,7 @@ abstract class MalListBase extends ListMixin<MalType>
   }
 }
 
-class MalList extends MalListBase {
+class MalList extends MalListBase<MalList> {
   MalList([super.list]);
   @override
   bool operator ==(covariant MalType other) => listCompare(this, other);
@@ -315,9 +320,15 @@ class MalList extends MalListBase {
 
   @override
   ParenthesesType get type => .round;
+
+  @override
+  MalType<dynamic> metadata = nil;
+
+  @override
+  MalList clone() => MalList(List.from(list));
 }
 
-class MalVector extends MalListBase {
+class MalVector extends MalListBase<MalVector> {
   MalVector([super.list]);
   @override
   bool operator ==(covariant MalType other) => listCompare(this, other);
@@ -327,11 +338,17 @@ class MalVector extends MalListBase {
 
   @override
   ParenthesesType get type => .square;
+
+  @override
+  MalType<dynamic> metadata = nil;
+
+  @override
+  MalVector clone() => MalVector(List.from(list));
 }
 
 class MalMap
     with MapMixin<MalType, MalType>
-    implements MalType<Map<MalType, MalType>> {
+    implements MalType<Map<MalType, MalType>>, MalMeta<MalMap> {
   MalMap([Map<MalType, MalType>? map])
     : _innerMap = map ?? <MalType, MalType>{};
   final Map<MalType, MalType> _innerMap;
@@ -388,6 +405,12 @@ class MalMap
 
   @override
   int get hashCode => throw UnimplementedError();
+
+  @override
+  MalType<dynamic> metadata = nil;
+
+  @override
+  MalMap clone() => MalMap(Map.from(_innerMap));
 }
 
 class MalSymbol extends MalType<String> {
@@ -447,11 +470,15 @@ typedef Fn<T extends MalType> = MalFn<T>;
 typedef FnTCO = MalFn<TCO>;
 typedef MalClosureFn = MalType Function(List<MalType> args);
 
-class MalFunction extends MalType<Fn> {
+mixin MalCallable<T> on MalType<T> {}
+
+class MalFunction extends MalType<Fn>
+    with MalCallable
+    implements MalMeta<MalFunction> {
   Fn get fn => super.val;
   MalFunction(super.val);
   @override
-  String toStr([bool printReadably = false]) => fn.toString();
+  String toStr([bool printReadably = false]) => '<MalFunction>${fn.toString()}';
 
   MalType call(List<MalType> args, Env env) {
     return fn(args, env);
@@ -467,6 +494,12 @@ class MalFunction extends MalType<Fn> {
 
   @override
   int get hashCode => val.hashCode;
+
+  @override
+  MalType<dynamic> metadata = nil;
+
+  @override
+  MalFunction clone() => MalFunction(val);
 }
 
 typedef TCO = (MalType ast, Env? env, bool conti);
@@ -476,7 +509,9 @@ extension ToTCO on MalType {
 }
 
 /// without eval args
-class MalMacroFunction<T> extends MalType<MalFn<T>> {
+class MalMacroFunction<T> extends MalType<MalFn<T>>
+    with MalCallable
+    implements MalMeta<MalMacroFunction<T>> {
   final String debugName;
   MalFn<T> get fn => super.val;
   final bool isTCO;
@@ -520,9 +555,17 @@ class MalMacroFunction<T> extends MalType<MalFn<T>> {
 
   @override
   int get hashCode => val.hashCode;
+
+  @override
+  MalType<dynamic> metadata = nil;
+
+  @override
+  MalMacroFunction<T> clone() => MalMacroFunction._(debugName, val, tco: isTCO);
 }
 
-class MalClosure extends MalType<MalClosureFn?> {
+class MalClosure extends MalType<MalClosureFn?>
+    with MalCallable
+    implements MalMeta<MalClosure> {
   @Deprecated('only for step4')
   MalClosureFn? get fn => super.val;
   final List<MalSymbol> params;
@@ -570,6 +613,11 @@ class MalClosure extends MalType<MalClosureFn?> {
   int get hashCode => val.hashCode;
 
   bool get isNotMacro => !isMacro;
+
+  @override
   MalClosure clone({bool isMacro = false}) =>
       MalClosure(params, env, fn, ast, isMacro);
+
+  @override
+  MalType<dynamic> metadata = nil;
 }

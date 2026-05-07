@@ -135,7 +135,38 @@ final Map<String, MalType> ns = {
               : args.first)
         : MalVector(),
   ),
-
+  'seq': MalFunction((List<MalType> args, Env env) {
+    switch (args.first) {
+      case final MalList list:
+        if (list.isEmpty) return nil;
+        return list;
+      case final MalVector vec:
+        if (vec.isEmpty) return nil;
+        return MalList(vec.list);
+      case final MalString str:
+        if (str.val.isEmpty) return nil;
+        return str.val.runes
+            .map((ch) => MalString(String.fromCharCode(ch)))
+            .toMalList();
+      case nil:
+        return nil;
+      default:
+        throw ArgumentInvalidError(
+          'seq can not using on type ${args.first.runtimeType}',
+        );
+    }
+  }),
+  'conj': MalFunction((args, env) {
+    final first = args.first.asMalListBase();
+    final rest = args.sublist(1);
+    if (first is MalList) {
+      return MalList([...rest.reversed, ...first]);
+    } else if (first is MalVector) {
+      return MalVector([...first, ...rest]);
+    } else {
+      throw ArgumentInvalidError('');
+    }
+  }),
   'empty?': MalFunction(
     (List<MalType> args, Env env) =>
         MalBool(args.first.asMalListBase().isEmpty),
@@ -191,12 +222,13 @@ final Map<String, MalType> ns = {
     }
     return MalString(file.readAsStringSync());
   }),
-  'atom': MalMacroFunction.normal(
-    'atom',
-    (List<MalType> args, Env env) => MalAtom(args.first),
-  ),
+  'atom': MalFunction((List<MalType> args, Env env) => MalAtom(args.first)),
   'deref': MalFunction(
-    (List<MalType> args, Env env) => (args.first as MalAtom).val.ref,
+    (List<MalType> args, Env env) => (args.first is MalAtom)
+        ? (args.first as MalAtom).val.ref
+        : throw ArgumentInvalidError(
+            "type <${args.first.runtimeType}>${args.first.toStr()} is not a subtype of type 'MalAtom' in type cast",
+          ),
   ),
   'reset!': MalFunction((List<MalType> args, Env env) {
     return (args.first as MalAtom).ref = args.second;
@@ -234,6 +266,9 @@ final Map<String, MalType> ns = {
   'vector': MalFunction((args, env) => MalVector(args)),
   'vector?': isType<MalVector>(),
   'map?': isType<MalMap>(),
+  'fn?': isType<MalCallable>((e) => e.isMacro == false),
+  'string?': isType<MalString>(),
+  'number?': isType<MalInt>(),
   'hash-map': MalFunction(
     (args, env) => MalMap(
       Map.fromEntries(args.slices(2).map((l) => MapEntry(l.first, l.second))),
@@ -268,6 +303,24 @@ final Map<String, MalType> ns = {
   ),
   'keys': MalFunction((args, env) => (args.first as MalMap).keys.toMalList()),
   'vals': MalFunction((args, env) => (args.first as MalMap).values.toMalList()),
+  'readline': MalFunction((args, env) {
+    stdout.write(args.first.stringVal.toBlue);
+    final input = stdin.readLineSync()?.trim();
+    if (input == null || input.contains(String.fromCharCode(4))) {
+      logger.d('Ctrl+D');
+      return nil;
+    }
+
+    logger.d('codeUnits: ${input.codeUnits}');
+    return MalString(input);
+  }),
+  'time-ms': MalFunction(
+    (args, env) => MalInt(DateTime.now().millisecondsSinceEpoch),
+  ),
+  'meta': MalFunction((args, env) => (args.first as MalMeta).metadata),
+  'with-meta': MalFunction(
+    (args, env) => (args.first as MalMeta).clone()..metadata = args.second,
+  ),
 };
 
 MalType call(MalType fn, List<MalType> args, Env env) => switch (fn) {
