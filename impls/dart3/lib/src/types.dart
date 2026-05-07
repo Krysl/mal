@@ -51,7 +51,7 @@ extension MalTypeAs on MalType {
   @pragma('vm:prefer-inline')
   String get stringVal => switch (this) {
     final MalString str => str.val,
-    final MalKeyword kw => ':${kw.val.substring(1)}',
+    final MalKeyword kw => kw.val.substring(1),
     _ => throw ArgumentError(''),
   };
 
