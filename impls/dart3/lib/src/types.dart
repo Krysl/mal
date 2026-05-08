@@ -133,7 +133,7 @@ class MalAtom extends MalType<_MalTypeRef> {
   }
 
   @override
-  int get hashCode => throw UnimplementedError();
+  int get hashCode => Object.hashAll([MalAtom, ref]);
 
   @override
   String toStr([bool printReadably = false]) =>
@@ -299,7 +299,7 @@ abstract class MalListBase<C> extends ListMixin<MalType>
   bool operator ==(covariant MalType other) => listCompare(this, other);
 
   @override
-  int get hashCode => val.hashCode;
+  int get hashCode => Object.hashAll(val);
 
   bool listCompare(ListBase a, MalType other) {
     if (other is ListBase) {
@@ -316,7 +316,7 @@ class MalList extends MalListBase<MalList> {
   bool operator ==(covariant MalType other) => listCompare(this, other);
 
   @override
-  int get hashCode => throw UnimplementedError();
+  int get hashCode => Object.hashAll(val);
 
   @override
   ParenthesesType get type => .round;
@@ -334,7 +334,7 @@ class MalVector extends MalListBase<MalVector> {
   bool operator ==(covariant MalType other) => listCompare(this, other);
 
   @override
-  int get hashCode => throw UnimplementedError();
+  int get hashCode => Object.hashAll(val);
 
   @override
   ParenthesesType get type => .square;
@@ -404,7 +404,7 @@ class MalMap
   }
 
   @override
-  int get hashCode => throw UnimplementedError();
+  int get hashCode => Object.hashAll([...val.keys, ...val.values]);
 
   @override
   MalType<dynamic> metadata = nil;
@@ -547,14 +547,16 @@ class MalMacroFunction<T> extends MalType<MalFn<T>>
 
   @override
   bool operator ==(covariant MalType other) {
-    if (other is! MalMacroFunction) {
+    if (other is! MalMacroFunction ||
+        isTCO != other.isTCO ||
+        debugName != other.debugName) {
       return false;
     }
     return val == other.val;
   }
 
   @override
-  int get hashCode => val.hashCode;
+  int get hashCode => Object.hashAll([fn, isTCO, debugName]);
 
   @override
   MalType<dynamic> metadata = nil;
@@ -581,17 +583,7 @@ class MalClosure extends MalType<MalClosureFn?>
   ]) : super(fn);
 
   @Deprecated('only for step4')
-  MalType call(List<MalType> args) {
-    // if (fn != null) {
-
-    // } else
-    if (fn is MalClosureFn) {
-      return fn!(args);
-    }
-    throw UnimplementedError(
-      'funcion type ${fn.runtimeType} is not implemented',
-    );
-  }
+  MalType call(List<MalType> args) => fn!(args);
 
   @override
   String toStr([bool printReadably = false]) =>
@@ -610,7 +602,7 @@ class MalClosure extends MalType<MalClosureFn?>
   }
 
   @override
-  int get hashCode => val.hashCode;
+  int get hashCode => Object.hashAll([fn, params, env, ast, isMacro]);
 
   bool get isNotMacro => !isMacro;
 

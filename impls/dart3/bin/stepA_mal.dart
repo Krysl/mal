@@ -234,13 +234,14 @@ void main(List<String> args) {
     rep('(loglevel debug)');
   }
   replEnv.preLoading(rep);
-  if (args.isNotEmpty) {
-    final filePath = args.first;
+
+  if (results.rest.isNotEmpty) {
     if (args.length > 1) {
       replEnv['*ARGV*'] = MalList(
         args.sublist(1).map((e) => MalString(e)).toList(),
       );
     }
+    final filePath = results.rest.first;
     var file = File(filePath);
     if (file.existsSync()) {
       rep('(load-file "$filePath")');
