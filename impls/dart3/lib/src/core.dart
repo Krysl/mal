@@ -305,6 +305,7 @@ final Map<String, MalType> ns = {
   'vals': MalFunction((args, env) => (args.first as MalMap).values.toMalList()),
   'readline': MalFunction((args, env) {
     stdout.write(args.first.stringVal.toBlue);
+    if (!stdin.hasTerminal) stdout.write('\n');
     final input = stdin.readLineSync()?.trim();
     if (input == null || input.contains(String.fromCharCode(4))) {
       logger.d('Ctrl+D');

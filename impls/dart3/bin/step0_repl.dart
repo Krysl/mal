@@ -11,6 +11,8 @@ String rep(String str) => print(eval(read(str)));
 void main(List<String> args) {
   while (true) {
     stdout.write('user> ');
+    if (!stdin.hasTerminal) stdout.write('\n');
+
     final input = stdin.readLineSync();
     if (input == null) break;
     final output = rep(input);

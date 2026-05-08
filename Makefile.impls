@@ -124,6 +124,7 @@ crystal_STEP_TO_PROG =       impls/crystal/$($(1))
 cs_STEP_TO_PROG =            impls/cs/$($(1)).exe
 d_STEP_TO_PROG =             impls/d/$($(1))
 dart_STEP_TO_PROG =          impls/dart/$($(1)).dart
+dart3_STEP_TO_PROG =         impls/dart3/bin/$($(1)).dart
 elisp_STEP_TO_PROG =         impls/elisp/$($(1)).el
 elixir_STEP_TO_PROG =        impls/elixir/lib/mix/tasks/$($(1)).ex
 elm_STEP_TO_PROG =           impls/elm/$($(1)).js

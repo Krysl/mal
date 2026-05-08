@@ -1,2 +1,12 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# package_config.json can exist but still be unusable across host/container path
+# differences. Probe with a tiny package import program and run pub get on demand.
+if ! dart "$script_dir/bin/pub_test.dart" >/dev/null 2>&1; then
+	dart pub get --directory "$script_dir" --offline
+fi
+
 exec dart $(dirname $0)/bin/${STEP:-stepA_mal}.dart "${@}"

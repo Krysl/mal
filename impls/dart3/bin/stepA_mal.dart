@@ -250,6 +250,7 @@ void main(List<String> args) {
   rep(r'''(println (str "Mal [" *host-language* "]"))''');
   while (true) {
     stdout.write('user> '.toBlue);
+    if (!stdin.hasTerminal) stdout.write('\n');
     final input = stdin.readLineSync()?.trim();
     if (input == null) break;
     if (input.isEmpty) continue;

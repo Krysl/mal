@@ -70,6 +70,9 @@ OPTIONAL=1
 # Run target/rule within docker image for the implementation
 DOCKERIZE =
 
+# On Windows Git/MSYS shells, disable automatic path conversion for docker args.
+MSYS_DOCKER_ENV = $(if $(filter Windows_NT,$(OS)),MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*',)
+
 
 #
 # General settings and utility functions
@@ -136,6 +139,7 @@ actual_impl = $(if $(filter mal,$(1)),$(patsubst %-mal,%,$(MAL_IMPL)),$(1))
 # for this impl
 get_build_command = $(strip $(foreach mode,$(1)_MODE, \
     $(if $(strip $(DOCKERIZE)),\
+      $(MSYS_DOCKER_ENV) \
       docker run \
       -it --rm -u $(shell id -u) \
       -v $(dir $(abspath $(lastword $(MAKEFILE_LIST)))):/mal \
@@ -152,6 +156,7 @@ get_build_command = $(strip $(foreach mode,$(1)_MODE, \
 # necessary to launch the given impl and step
 get_run_prefix = $(strip $(foreach mode,$(call actual_impl,$(1))_MODE, \
     $(if $(strip $(DOCKERIZE) $(4)),\
+      $(MSYS_DOCKER_ENV) \
       docker run -e STEP=$($2) -e MAL_IMPL=$(MAL_IMPL) \
       -it --rm -u $(shell id -u) \
       -v $(dir $(abspath $(lastword $(MAKEFILE_LIST)))):/mal \
@@ -215,9 +220,10 @@ ALL_REPL = $(strip $(sort \
 .PHONY: $(foreach i,$(DO_IMPLS),$(foreach s,$(STEPS),$(call $(i)_STEP_TO_PROG,$(s))))
 $(foreach i,$(DO_IMPLS),$(foreach s,$(STEPS),$(call $(i)_STEP_TO_PROG,$(s)))):
 	$(foreach impl,$(word 2,$(subst /, ,$(@))),\
-	  $(if $(DOCKERIZE), \
-	    $(call get_build_command,$(impl)) $(patsubst impls/$(impl)/%,%,$(@)), \
-	    $(call get_build_command,$(impl)) $(subst impls/$(impl)/,,$(@))))
+	  $(if $(filter-out mal,$(impl)),\
+	    $(if $(DOCKERIZE), \
+	      $(call get_build_command,$(call actual_impl,$(impl))) $(patsubst impls/$(impl)/%,%,$(@)), \
+	      $(call get_build_command,$(impl)) $(subst impls/$(impl)/,,$(@)))))
 
 # Allow IMPL, build^IMPL, IMPL^STEP, and build^IMPL^STEP
 $(DO_IMPLS): $$(foreach s,$$(STEPS),$$(call $$(@)_STEP_TO_PROG,$$(s)))

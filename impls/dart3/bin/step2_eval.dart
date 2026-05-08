@@ -39,6 +39,7 @@ String rep(String str) => print(eval(read(str), replEnv));
 void main(List<String> args) {
   while (true) {
     stdout.write('user> '.toBlue);
+    if (!stdin.hasTerminal) stdout.write('\n');
     final input = stdin.readLineSync();
     if (input == null) break;
     try {
