@@ -42,7 +42,7 @@ process guide](process/guide.md) there is also a [mal/make-a-lisp
 FAQ](docs/FAQ.md) where I attempt to answer some common questions.
 
 
-**3. Mal is implemented in 89 languages (95 different implementations and 118 runtime modes)**
+**3. Mal is implemented in 89 languages (96 different implementations and 118 runtime modes)**
 
 | Language | Creator |
 | -------- | ------- |
@@ -63,6 +63,7 @@ FAQ](docs/FAQ.md) where I attempt to answer some common questions.
 | [Crystal](#crystal) | [Linda_pp](https://github.com/rhysd) |
 | [D](#d) | [Dov Murik](https://github.com/dubek) |
 | [Dart](#dart) | [Harry Terkelsen](https://github.com/hterkelsen) |
+| [Dart 3](#dart3) | [Krysl](https://github.com/krysl) |
 | [Elixir](#elixir) | [Martin Ek](https://github.com/ekmartin) |
 | [Elm](#elm) | [Jos van Bakel](https://github.com/c0deaddict) |
 | [Emacs Lisp](#emacs-lisp) | [Vasilij Schneidermann](https://github.com/wasamasa) |
@@ -418,6 +419,15 @@ The Dart implementation has been tested with Dart 1.20.
 ```
 cd impls/dart
 dart ./stepX_YYY
+```
+
+### Dart3
+
+The Dart 3 implementation has been tested with Dart 3.11.4.
+
+```
+cd impls/dart3
+dart ./bin/stepX_YYY
 ```
 
 ### Emacs Lisp

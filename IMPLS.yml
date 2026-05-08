@@ -20,6 +20,7 @@ IMPL:
   - {IMPL: d, d_MODE: ldc2}
   - {IMPL: d, d_MODE: dmd}
   - {IMPL: dart}
+  - {IMPL: dart3}
   - {IMPL: elisp}
   - {IMPL: elixir}
   - {IMPL: elm}
