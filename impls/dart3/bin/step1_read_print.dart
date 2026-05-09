@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:mal/mal.dart';
 
-MalType read(String str) => readStr(str);
-MalType eval(MalType val) => val;
-String print(MalType str) => prStr(str, true);
+MalAny read(String str) => readStr(str);
+MalAny eval(MalAny val) => val;
+String print(MalAny str) => prStr(str, true);
 String rep(String str) => print(eval(read(str)));
 
 void main(List<String> args) {

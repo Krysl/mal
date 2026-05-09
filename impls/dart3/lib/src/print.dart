@@ -20,7 +20,7 @@ List<String> clearTestOutput() {
   return list;
 }
 
-String prStr(MalType val, [bool printReadably = false]) {
+String prStr(MalAny val, [bool printReadably = false]) {
   final debugOn = globalEnv.debugStr;
   if (debugOn) {
     debugPrint(

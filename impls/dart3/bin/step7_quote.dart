@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 
-MalType read(String str) => readStr(str);
+MalAny read(String str) => readStr(str);
 
 MalList qqLoop(MalListBase list) => MalList(
   list.isEmpty
@@ -22,7 +22,7 @@ MalList qqLoop(MalListBase list) => MalList(
         ].reduce((combined, curr) => curr..list.add(combined)),
 );
 
-MalType quasiquote(MalType ast) {
+MalAny quasiquote(MalAny ast) {
   final ret = switch (ast) {
     final MalList list when list.length == 2 && list.first == unquote =>
       list.second,
@@ -35,7 +35,7 @@ MalType quasiquote(MalType ast) {
 }
 
 int depth = 0;
-MalType eval(MalType ast, Env env) {
+MalAny eval(MalAny ast, Env env) {
   depth++;
   int loop = 0;
   while (true) {
@@ -62,22 +62,18 @@ MalType eval(MalType ast, Env env) {
         (list.isNotEmpty)
             ? (switch (list.first) {
                 MalSymbol(name: 'if') => switch (eval(list.second, env)) {
-                  MalBool(val: true) ||
-                  MalInt() ||
-                  MalString() ||
-                  MalList() ||
-                  MalVector() => (list.third, null, true),
-                  MalNil() || _ =>
+                  MalNil() || MalBool(val: false) =>
                     list.length > 3
                         ? (list.fourth, null, true)
                         : (MalNil(), null, true),
+                  _ => (list.third, null, true),
                 },
                 MalSymbol(name: 'fn*') =>
                   list.second is MalListBase
-                      ? ((params) => MalClosure(
+                      ? ((List<MalSymbol> params) => MalClosure(
                           params,
                           env,
-                          (List<MalType> fnArgs) => eval(
+                          (List<MalAny> fnArgs) => eval(
                             list.third,
                             Env(outer: env, binds: params, exprs: fnArgs),
                           ),
@@ -105,15 +101,15 @@ MalType eval(MalType ast, Env env) {
                   logger.d('eval ${ret.toStr(true)}');
                   return (ret, null, true);
                 }(),
-                _ => switch (eval(list.first, env)) {
+                final first => switch (eval(
+                  first is MalList ? eval(first, env) : first,
+                  env,
+                )) {
                   final MalFunction fn =>
                     fn
                         .call(list.args.map((e) => eval(e, env)).toList(), env)
                         .toTCO(),
-                  final MalMacroFunction fn =>
-                    (fn.isTCO)
-                        ? fn.callTCO(list.args, env)
-                        : fn.call(list.args, env).toTCO(),
+                  final MalMacroFunction fn => fn.call(list.args, env),
                   final MalClosure fn => (
                     fn.ast!,
                     Env(
@@ -145,39 +141,32 @@ MalType eval(MalType ast, Env env) {
   }
 }
 
-String print(MalType str) => prStr(str, true);
+String print(MalAny str) => prStr(str, true);
 
 final replEnv = globalEnv
   ..addAll({
-    'def!': MalMacroFunction.normal(
+    'def!': MalMacroFunction(
       'def!',
-      (List<MalType> args, Env env) =>
-          env[(args[0] as MalSymbol).name] = eval(args[1], env),
+      (List<MalAny> args, Env env) =>
+          (env[(args[0] as MalSymbol).name] = eval(args[1], env)).toTCO(),
     ),
-    'let*': MalMacroFunction.tco('let*', (List<MalType> args, Env env) {
+    'let*': MalMacroFunction('let*', (List<MalAny> args, Env env) {
       final newEnv = Env(outer: env);
-      List<dynamic> first;
-      if (args.first is MalList) {
-        first = (args.first as MalList);
-      } else if (args.first is MalVector) {
-        first = (args.first as MalVector);
-      } else {
-        throw UnsupportedError(
-          'unsupported ${args.first.runtimeType} as Let* \'s first arg',
-        );
-      }
+      MalListBase first = args.first.asMalListBase(
+        errMsg: 'unsupported ${args.first.runtimeType} as Let* \'s first arg',
+      );
 
       for (final [key, val] in first.slices(2)) {
-        newEnv[(key as MalSymbol).name] = eval(val, newEnv);
+        newEnv[key.malSymbolName] = eval(val, newEnv);
       }
       return (args.second, newEnv, true);
     }),
-    'time': MalMacroFunction.normal('time', (List<MalType> args, Env env) {
+    'time': MalMacroFunction('time', (List<MalAny> args, Env env) {
       final stopwatch = Stopwatch()..start();
       final ret = eval(args.first, env);
       stopwatch.stop();
       println('time: ${stopwatch.elapsed}');
-      return ret;
+      return ret.toTCO();
     }),
     ...ns,
     'eval': MalFunction((args, env) => eval(args.first, env.outer ?? env)),

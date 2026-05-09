@@ -30,12 +30,12 @@ typedef RepFn = String Function(String str);
 
 class Env {
   final Env? outer;
-  final Map<String, MalType> data;
+  final Map<String, MalAny> data;
   Env({
     this.outer,
-    Map<String, MalType>? data,
+    Map<String, MalAny>? data,
     List<MalSymbol>? binds,
-    List<MalType>? exprs,
+    List<MalAny>? exprs,
   }) : data = data ?? {} {
     if (binds == null) {
       assert(exprs == null);
@@ -62,18 +62,18 @@ class Env {
     flags = Flags(this);
   }
 
-  void operator []=(String key, MalType val) => data[key] = val;
-  MalType? operator [](String key) => data[key] ?? outer?[key];
+  void operator []=(String key, MalAny val) => data[key] = val;
+  MalAny? operator [](String key) => data[key] ?? outer?[key];
   bool containsKey(String key) =>
       data.containsKey(key) || (outer?.containsKey(key) ?? false);
 
   final List<String> _builtinKeys = ['DEBUG-EVAL', 'not', 'load-file'];
-  void addAll(Map<String, MalType> other) {
+  void addAll(Map<String, MalAny> other) {
     _builtinKeys.addAll(other.keys);
     data.addAll(other);
   }
 
-  MalType getSymbolVal(MalSymbol symbol) {
+  MalAny getSymbolVal(MalSymbol symbol) {
     final key = symbol.name;
     return data[key] ??
         outer?[key] ??

@@ -3,10 +3,31 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 
-# package_config.json can exist but still be unusable across host/container path
-# differences. Probe with a tiny package import program and run pub get on demand.
-if ! dart "$script_dir/bin/pub_test.dart" >/dev/null 2>&1; then
-	dart pub get --directory "$script_dir" --offline
+if [[ -n "${IN_DOCKER:-}" ]]; then
+	probe_cmd=(dart --packages="$script_dir/.dart_tool/package_config_docker.json" "$script_dir/bin/pub_test.dart")
+else
+	probe_cmd=(dart "$script_dir/bin/pub_test.dart")
 fi
 
-exec dart $(dirname $0)/bin/${STEP:-stepA_mal}.dart "${@}"
+# package_config.json can exist but still be unusable across host/container path
+# differences. Probe with a tiny package import program and run pub get on demand.
+# Use different dependencies inside and outside Docker to prevent Docker tests 
+# from breaking external dependencies.
+if ! "${probe_cmd[@]}" >/dev/null 2>&1; then
+	has_host_package_config=0
+	if [[ -f "$script_dir/.dart_tool/package_config.json" ]]; then
+		cp "$script_dir/.dart_tool/package_config.json" "$script_dir/.dart_tool/package_config.json.bak"
+		has_host_package_config=1
+	fi
+	dart pub get --directory "$script_dir" --offline
+	mv "$script_dir/.dart_tool/package_config.json" "$script_dir/.dart_tool/package_config_docker.json"
+	if [[ "$has_host_package_config" -eq 1 ]]; then
+		mv "$script_dir/.dart_tool/package_config.json.bak" "$script_dir/.dart_tool/package_config.json"
+	fi
+fi
+
+if [[ -n "${IN_DOCKER:-}" ]]; then
+	exec dart --packages=$(dirname $0)/.dart_tool/package_config_docker.json $(dirname $0)/bin/${STEP:-stepA_mal}.dart "${@}"
+else
+	exec dart $(dirname $0)/bin/${STEP:-stepA_mal}.dart "${@}"
+fi

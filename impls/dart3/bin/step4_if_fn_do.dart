@@ -5,19 +5,19 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 
-MalType read(String str) => readStr(str);
-MalType eval(MalType ast, Env env) {
+MalAny read(String str) => readStr(str);
+MalAny eval(MalAny ast, Env env) {
   if (env.debugEval) {
     stdout.writeln('${'EVAL:'.toCyan} ${prStr(ast, true)}');
   }
 
-  MalType listCall(MalListBase list, Env env, MalListBase ast) {
+  MalAny listCall(MalListBase list, Env env, MalListBase ast) {
     if (list.isNotEmpty) {
       var fn = eval(list.first, env);
       if (fn is MalFunction) {
         return fn.call(list.args.map((e) => eval(e, env)).toList(), env);
       } else if (fn is MalMacroFunction) {
-        return fn.call(list.args, env);
+        return fn.callWithoutTCO(list.args, env);
       } else if (fn is MalClosure) {
         return fn.call(list.args.map((e) => eval(e, env)).toList());
       } else if (fn is MalSymbolNotFound) {
@@ -40,37 +40,30 @@ MalType eval(MalType ast, Env env) {
   };
 }
 
-String print(MalType str) => prStr(str, true);
+String print(MalAny str) => prStr(str, true);
 
 final replEnv = globalEnv
   ..addAll({
     'def!': MalMacroFunction.normal(
       'def!',
-      (List<MalType> args, Env env) =>
+      (List<MalAny> args, Env env) =>
           env[(args[0] as MalSymbol).name] = eval(args[1], env),
     ),
-    'let*': MalMacroFunction.normal('let*', (List<MalType> args, Env env) {
+    'let*': MalMacroFunction.normal('let*', (List<MalAny> args, Env env) {
       final newEnv = Env(outer: env);
-      List<dynamic> first;
-      if (args.first is MalList) {
-        first = (args.first as MalList);
-      } else if (args.first is MalVector) {
-        first = (args.first as MalVector);
-      } else {
-        throw UnsupportedError(
-          'unsupported ${args.first.runtimeType} as Let* \'s first arg',
-        );
-      }
+      MalListBase first = args.first.asMalListBase(
+        errMsg: 'unsupported ${args.first.runtimeType} as Let* \'s first arg',
+      );
 
       for (final [key, val] in first.slices(2)) {
         newEnv[(key as MalSymbol).name] = eval(val, newEnv);
       }
       return eval(args[1], newEnv);
     }),
-    'do': MalMacroFunction.normal('do', (List<MalType> args, Env env) {
+    'do': MalMacroFunction.normal('do', (List<MalAny> args, Env env) {
       return args.map((e) => eval(e, env)).toList().last;
     }),
-    'if': MalMacroFunction.normal('if', (List<MalType> args, Env env) {
+    'if': MalMacroFunction.normal('if', (List<MalAny> args, Env env) {
       final br = eval(args.first, env);
       if (br is! MalNil && !(br is MalBool && br.val == false)) {
         return eval(args[1], env);
@@ -80,7 +73,7 @@ final replEnv = globalEnv
         return MalNil();
       }
     }),
-    'fn*': MalMacroFunction.normal('fn*', (List<MalType> args, Env env) {
+    'fn*': MalMacroFunction.normal('fn*', (List<MalAny> args, Env env) {
       final first = args.first;
       final list = ((first is MalListBase ? first : null))?.list;
       if (list == null) {
@@ -93,7 +86,7 @@ final replEnv = globalEnv
       return MalClosure(
         params,
         env,
-        (List<MalType> fnArgs) =>
+        (List<MalAny> fnArgs) =>
             eval(args.second, Env(outer: env, binds: params, exprs: fnArgs)),
       );
     }),

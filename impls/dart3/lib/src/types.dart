@@ -2,25 +2,30 @@ import 'dart:collection';
 
 import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
-import 'package:meta/meta.dart';
+
+typedef MalAny = MalType<dynamic>;
 
 sealed class MalType<T> {
   final T val;
   const MalType(this.val);
   String toStr([bool printReadably = false]);
-  @override
-  @mustBeOverridden
-  bool operator ==(covariant MalType<T> other);
 
   @override
-  @mustBeOverridden
-  int get hashCode;
+  bool operator ==(covariant MalAny other) {
+    if (runtimeType != other.runtimeType) {
+      return false;
+    }
+    return val == other.val;
+  }
+
+  @override
+  int get hashCode => val.hashCode;
 
   @override
   String toString() => toStr();
 }
 
-extension MalTypeAs on MalType {
+extension MalTypeAs on MalAny {
   @pragma('vm:prefer-inline')
   int asInt() => (this as MalInt).val;
 
@@ -59,18 +64,18 @@ extension MalTypeAs on MalType {
   bool get isMacro => this is MalClosure && (this as MalClosure).isMacro;
 }
 
-extension Second on List<MalType> {
+extension Second on List<MalAny> {
   @pragma('vm:prefer-inline')
-  MalType get second => this[1];
+  MalAny get second => this[1];
   @pragma('vm:prefer-inline')
-  MalType get third => this[2];
+  MalAny get third => this[2];
   @pragma('vm:prefer-inline')
-  MalType get fourth => this[3];
+  MalAny get fourth => this[3];
   @pragma('vm:prefer-inline')
   MalList toMalList() => MalList(this);
 }
 
-extension ToMalList on Iterable<MalType> {
+extension ToMalList on Iterable<MalAny> {
   @pragma('vm:prefer-inline')
   MalList toMalList() => MalList(toList());
 }
@@ -84,49 +89,34 @@ class MalInt extends MalType<int> {
   MalInt operator -(MalInt other) => MalInt(val - other.val);
   MalInt operator *(MalInt other) => MalInt(val * other.val);
   MalInt operator /(MalInt other) => MalInt(val ~/ other.val);
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalInt) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
 }
 
 class MalNil extends MalType<Null> {
   const MalNil() : super(null);
   @override
   String toStr([bool printReadably = false]) => 'nil';
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other.runtimeType != MalNil) {
-      return false;
-    }
-    return true;
-  }
-
-  @override
-  int get hashCode => (MalNil).hashCode;
 }
 
 const nil = MalNil();
 
-class _MalTypeRef {
-  _MalTypeRef(this.ref);
-  MalType ref;
+class MalTypeRef {
+  MalTypeRef(this.ref);
+  MalAny ref;
+  @override
+  operator ==(covariant MalTypeRef other) => ref == other.ref;
+
+  @override
+  int get hashCode => ref.hashCode;
 }
 
-class MalAtom extends MalType<_MalTypeRef> {
-  MalType get ref => val.ref;
-  set ref(MalType newVal) => val.ref = newVal;
+class MalAtom extends MalType<MalTypeRef> {
+  MalAny get ref => val.ref;
+  set ref(MalAny newVal) => val.ref = newVal;
 
-  MalAtom(MalType val) : super(_MalTypeRef(val));
+  MalAtom(MalAny val) : super(MalTypeRef(val));
   @override
-  bool operator ==(covariant MalType other) {
-    if (other.runtimeType != MalNil) {
+  bool operator ==(covariant MalAny other) {
+    if (other is! MalAtom) {
       return false;
     }
     return val == other.val;
@@ -144,34 +134,12 @@ class MalBool extends MalType<bool> {
   MalBool(super.val);
   @override
   String toStr([bool printReadably = false]) => val ? 'true' : 'false';
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalBool) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
 }
 
 class MalKeyword extends MalType<String> {
   MalKeyword(String val) : super('\u029E$val');
   @override
   String toStr([bool printReadably = false]) => ':${val.substring(1)}';
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalKeyword) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
 }
 
 class MalString extends MalType<String> {
@@ -184,40 +152,6 @@ class MalString extends MalType<String> {
   @override
   String toStr([bool printReadably = false]) =>
       printReadably == true ? '"${val.toPrintable()}"' : val;
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalString) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
-}
-
-class MalComment extends MalType<String> {
-  MalComment(super.val)
-    : assert(() {
-        logger.t('make MalComment($val)');
-        return true;
-      }());
-
-  @override
-  String toStr([bool printReadably = false]) =>
-      printReadably == true ? ';${val.toPrintable()}' : val;
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalComment) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
 }
 
 extension type const Parentheses._((String, String) p) {
@@ -246,7 +180,7 @@ enum ParenthesesType {
   String get right => p.right;
 }
 
-bool _listCompare(List a, List b) {
+bool _listCompare(List<dynamic> a, List<dynamic> b) {
   if (a.length != b.length) {
     return false;
   }
@@ -256,52 +190,48 @@ bool _listCompare(List a, List b) {
   return true;
 }
 
-abstract interface class MalMeta<T> {
-  MalType metadata = nil;
-  T clone();
+mixin MalMeta<T> on MalType<T> {
+  MalAny metadata = nil;
+  MalMeta<T> clone();
 }
 
-abstract class MalListBase<C> extends ListMixin<MalType>
-    implements MalType<List<MalType>>, MalMeta<C> {
-  MalListBase([List<MalType>? list]) : _inner = list ?? <MalType>[];
-  abstract final ParenthesesType type;
-  final List<MalType> _inner;
+abstract class MalListBase<E extends MalAny> extends MalType<List<E>>
+    with ListMixin<E>, MalMeta {
+  MalListBase([List<E>? list]) : super(list ?? []);
+  ParenthesesType get type;
   @override
-  int get length => _inner.length;
+  int get length => val.length;
 
   @override
-  set length(int newLength) => _inner.length = newLength;
+  set length(int newLength) => val.length = newLength;
 
   @override
-  MalType operator [](int index) => _inner[index];
+  E operator [](int index) => val[index];
 
   @override
-  void operator []=(int index, MalType value) => _inner[index] = value;
+  void operator []=(int index, E value) => val[index] = value;
 
   @override
   String toStr([bool printReadably = false]) =>
-      '${type.left}${_inner.map((e) => e.toStr(printReadably)).join(' ')}${type.right}';
+      '${type.left}${val.map((e) => e.toStr(printReadably)).join(' ')}${type.right}';
 
   @override
-  Iterable<T> map<T>(T Function(MalType e) f) => _inner.map(f);
+  Iterable<T> map<T>(T Function(E e) f) => val.map(f);
 
-  List<MalType> get list => _inner;
-
-  @override
-  void add(MalType element) => _inner.add(element);
-
-  List<MalType> get args => _inner.sublist(1);
+  List<E> get list => val;
 
   @override
-  List<MalType> get val => _inner;
+  void add(E element) => val.add(element);
+
+  List<E> get args => val.sublist(1);
 
   @override
-  bool operator ==(covariant MalType other) => listCompare(this, other);
+  bool operator ==(covariant MalAny other) => listCompare(this, other);
 
   @override
   int get hashCode => Object.hashAll(val);
 
-  bool listCompare(ListBase a, MalType other) {
+  bool listCompare(ListBase<E> a, MalAny other) {
     if (other is ListBase) {
       return _listCompare(a, other as ListBase);
     } else {
@@ -310,78 +240,57 @@ abstract class MalListBase<C> extends ListMixin<MalType>
   }
 }
 
-class MalList extends MalListBase<MalList> {
+class MalList extends MalListBase {
   MalList([super.list]);
-  @override
-  bool operator ==(covariant MalType other) => listCompare(this, other);
-
-  @override
-  int get hashCode => Object.hashAll(val);
 
   @override
   ParenthesesType get type => .round;
 
   @override
-  MalType<dynamic> metadata = nil;
-
-  @override
-  MalList clone() => MalList(List.from(list));
+  MalList clone() => MalList(List<MalAny>.from(list));
 }
 
-class MalVector extends MalListBase<MalVector> {
+class MalVector extends MalListBase {
   MalVector([super.list]);
-  @override
-  bool operator ==(covariant MalType other) => listCompare(this, other);
-
-  @override
-  int get hashCode => Object.hashAll(val);
 
   @override
   ParenthesesType get type => .square;
 
   @override
-  MalType<dynamic> metadata = nil;
-
-  @override
   MalVector clone() => MalVector(List.from(list));
 }
 
-class MalMap
-    with MapMixin<MalType, MalType>
-    implements MalType<Map<MalType, MalType>>, MalMeta<MalMap> {
-  MalMap([Map<MalType, MalType>? map])
-    : _innerMap = map ?? <MalType, MalType>{};
-  final Map<MalType, MalType> _innerMap;
-  @override
-  operator [](Object? key) => _innerMap[key];
+class MalMap<K extends MalAny, V extends MalAny> extends MalType<Map<K, V>>
+    with MapMixin<K, V>, MalMeta {
+  MalMap([Map<K, V>? map]) : super(map ?? <K, V>{});
 
   @override
-  void operator []=(key, value) => _innerMap[key] = value;
+  operator [](covariant K key) => val[key];
 
   @override
-  void clear() => _innerMap.clear();
+  void operator []=(K key, V value) => val[key] = value;
 
   @override
-  Iterable<MalType> get keys => _innerMap.keys;
+  void clear() => val.clear();
 
   @override
-  remove(Object? key) => _innerMap.remove(key);
+  Iterable<K> get keys => val.keys;
+
+  @override
+  remove(Object? key) => val.remove(key);
 
   @override
   String toStr([bool printReadably = false]) {
     if (shouldLog) {
-      final maxKeyLength = _innerMap.keys.map((e) => e.toStr().length).max;
-      return '{\n\t${_innerMap.entries.map((kv) => '${kv.key}${' ' * (maxKeyLength - kv.key.toStr().length)}: ${kv.value.toStr(printReadably)}').join('\n\t')}\n}';
+      final maxKeyLength = val.keys.map((e) => e.toStr().length).max;
+      return '{\n\t${val.entries.map((kv) => '${kv.key}${' ' * (maxKeyLength - kv.key.toStr().length)}: ${kv.value.toStr(printReadably)}').join('\n\t')}\n}';
     } else {
-      return '{${_innerMap.entries.map((kv) => '${kv.key.toStr(true)} ${kv.value.toStr(printReadably)}').join(' ')}}';
+      return '{${val.entries.map((kv) => '${kv.key.toStr(true)} ${kv.value.toStr(printReadably)}').join(' ')}}';
     }
   }
 
   @override
-  Map<MalType, MalType> get val => _innerMap;
-
-  @override
-  bool operator ==(covariant MalType other) {
+  bool operator ==(covariant MalAny other) {
     if (other is! MalMap) {
       return false;
     }
@@ -407,10 +316,7 @@ class MalMap
   int get hashCode => Object.hashAll([...val.keys, ...val.values]);
 
   @override
-  MalType<dynamic> metadata = nil;
-
-  @override
-  MalMap clone() => MalMap(Map.from(_innerMap));
+  MalMap<K, V> clone() => MalMap(Map.from(val));
 }
 
 class MalSymbol extends MalType<String> {
@@ -420,17 +326,6 @@ class MalSymbol extends MalType<String> {
   const MalSymbol.builtin(super.val) : token = null;
   @override
   String toStr([bool printReadably = false]) => name;
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalSymbol) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => Object.hashAll([MalSymbol, val]);
 }
 
 extension ToSymbolBuiltin on String {
@@ -454,7 +349,7 @@ final class MalSymbolNotFound extends MalType<Token> {
   Error makeError() => KeyNotFoundError(toStr());
 
   @override
-  bool operator ==(covariant MalType other) {
+  bool operator ==(covariant MalAny other) {
     if (other is! MalSymbolNotFound) {
       return false;
     }
@@ -465,114 +360,72 @@ final class MalSymbolNotFound extends MalType<Token> {
   int get hashCode => val.hashCode;
 }
 
-typedef MalFn<T> = T Function(List<MalType> args, Env env);
-typedef Fn<T extends MalType> = MalFn<T>;
-typedef FnTCO = MalFn<TCO>;
-typedef MalClosureFn = MalType Function(List<MalType> args);
+typedef Fn<T> = T Function(List<MalAny> args, Env env);
+typedef FnMalType<T extends MalAny> = Fn<T>;
+typedef FnTCO = Fn<TCO>;
+typedef MalClosureFn = MalAny Function(List<MalAny> args);
 
-mixin MalCallable<T> on MalType<T> {}
+mixin _MalCallable<T> on MalType<T> {}
+typedef MalCallable = _MalCallable<dynamic>;
 
-class MalFunction extends MalType<Fn>
-    with MalCallable
-    implements MalMeta<MalFunction> {
-  Fn get fn => super.val;
+abstract class MalFunctionBase<T> extends MalType<Fn<T>>
+    with _MalCallable, MalMeta {
+  MalFunctionBase(super.val);
+  Fn<T> get fn => super.val;
+
+  T call(List<MalAny> args, Env env) => fn(args, env);
+}
+
+class MalFunction extends MalFunctionBase<MalAny> with _MalCallable, MalMeta {
   MalFunction(super.val);
   @override
   String toStr([bool printReadably = false]) => '<MalFunction>${fn.toString()}';
-
-  MalType call(List<MalType> args, Env env) {
-    return fn(args, env);
-  }
-
-  @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalFunction) {
-      return false;
-    }
-    return val == other.val;
-  }
-
-  @override
-  int get hashCode => val.hashCode;
-
-  @override
-  MalType<dynamic> metadata = nil;
 
   @override
   MalFunction clone() => MalFunction(val);
 }
 
-typedef TCO = (MalType ast, Env? env, bool conti);
+typedef TCO = (MalAny ast, Env? env, bool conti);
 
-extension ToTCO on MalType {
+extension ToTCO on MalAny {
   TCO toTCO([Env? env, bool cont = false]) => (this, env, cont);
 }
 
 /// without eval args
-class MalMacroFunction<T> extends MalType<MalFn<T>>
-    with MalCallable
-    implements MalMeta<MalMacroFunction<T>> {
+class MalMacroFunction extends MalFunctionBase<TCO> with _MalCallable, MalMeta {
   final String debugName;
-  MalFn<T> get fn => super.val;
-  final bool isTCO;
-  MalMacroFunction._(this.debugName, super.val, {bool tco = false})
-    : isTCO = tco;
-  static MalMacroFunction<R> normal<R extends MalType>(
-    String debugName,
-    Fn<R> val, {
-    bool tco = false,
-  }) => MalMacroFunction<R>._(debugName, val);
-  static MalMacroFunction<TCO> tco(String debugName, FnTCO val) =>
-      ._(debugName, val, tco: true);
+  MalMacroFunction(this.debugName, super.val);
+
+  @Deprecated('only for step3/4')
+  factory MalMacroFunction.normal(String debugName, FnMalType<MalAny> fn) =>
+      MalMacroFunction(debugName, (args, env) => fn(args, env).toTCO());
+
+  @Deprecated('only for step3/4')
+  MalAny callWithoutTCO(List<MalAny> args, Env env) => fn(args, env).$1;
+
   @override
   String toStr([bool printReadably = false]) => '$debugName ${fn.toString()}';
 
-  R call<R extends MalType>(List<MalType> args, Env env) {
-    if (fn is Fn<R>) {
-      return fn(args, env) as R;
-    }
-    throw UnimplementedError(
-      'funcion type ${fn.runtimeType} is not implemented',
-    );
-  }
-
-  TCO callTCO(List<MalType> args, Env env) {
-    if (fn is FnTCO) {
-      return fn(args, env) as TCO;
-    }
-    throw UnimplementedError(
-      'funcion "$debugName" type ${fn.runtimeType} is not implemented for tco',
-    );
-  }
-
   @override
-  bool operator ==(covariant MalType other) {
-    if (other is! MalMacroFunction ||
-        isTCO != other.isTCO ||
-        debugName != other.debugName) {
+  bool operator ==(covariant MalAny other) {
+    if (other is! MalMacroFunction || debugName != other.debugName) {
       return false;
     }
     return val == other.val;
   }
 
   @override
-  int get hashCode => Object.hashAll([fn, isTCO, debugName]);
+  int get hashCode => Object.hashAll([fn, debugName]);
 
   @override
-  MalType<dynamic> metadata = nil;
-
-  @override
-  MalMacroFunction<T> clone() => MalMacroFunction._(debugName, val, tco: isTCO);
+  MalMacroFunction clone() => MalMacroFunction(debugName, val);
 }
 
-class MalClosure extends MalType<MalClosureFn?>
-    with MalCallable
-    implements MalMeta<MalClosure> {
-  @Deprecated('only for step4')
+class MalClosure extends MalType<MalClosureFn?> with _MalCallable, MalMeta {
   MalClosureFn? get fn => super.val;
   final List<MalSymbol> params;
   final Env env;
-  final MalType? ast;
+  final MalAny? ast;
   final bool isMacro;
   MalClosure(
     this.params,
@@ -582,15 +435,14 @@ class MalClosure extends MalType<MalClosureFn?>
     this.isMacro = false,
   ]) : super(fn);
 
-  @Deprecated('only for step4')
-  MalType call(List<MalType> args) => fn!(args);
+  MalAny call(List<MalAny> args) => fn!(args);
 
   @override
   String toStr([bool printReadably = false]) =>
       '#<function> ${ast?.toStr(printReadably)}';
 
   @override
-  bool operator ==(covariant MalType other) {
+  bool operator ==(covariant MalAny other) {
     if (other is! MalClosure) {
       return false;
     }
@@ -609,7 +461,4 @@ class MalClosure extends MalType<MalClosureFn?>
   @override
   MalClosure clone({bool isMacro = false}) =>
       MalClosure(params, env, fn, ast, isMacro);
-
-  @override
-  MalType<dynamic> metadata = nil;
 }

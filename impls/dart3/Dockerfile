@@ -33,6 +33,7 @@ RUN apt-get -y install dart=3.11.4-1
 # Run dart with writable home/cache for arbitrary uid in docker run (-u <uid>).
 ENV HOME=/tmp
 ENV PUB_CACHE=/opt/dart-pub-cache
+ENV IN_DOCKER=true
 RUN mkdir -p /opt/dart-pub-cache /tmp/dart3-deps && chmod -R 777 /opt/dart-pub-cache /tmp/dart3-deps
 
 # Pre-fetch dependencies into image cache so tests do not need to run pub get each time.

@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:mal/mal.dart';
 
-MalType read(String str) => readStr(str);
-MalType eval(MalType ast, Env env) {
+MalAny read(String str) => readStr(str);
+MalAny eval(MalAny ast, Env env) {
   if (env.debugEval) {
     stdout.writeln('${'EVAL:'.toCyan} ${prStr(ast, true)}');
   }
 
-  MalType listCall(MalList list, Env env, MalList ast) {
+  MalAny listCall(MalList list, Env env, MalList ast) {
     if (list.isNotEmpty) {
       var fn = eval(list.first, env);
       if (fn is MalFunction) {
@@ -31,7 +31,7 @@ MalType eval(MalType ast, Env env) {
   };
 }
 
-String print(MalType str) => prStr(str, true);
+String print(MalAny str) => prStr(str, true);
 
 final replEnv = Env(data: ns);
 String rep(String str) => print(eval(read(str), replEnv));

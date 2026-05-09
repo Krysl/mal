@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 
-MalType read(String str) => readStr(str);
+MalAny read(String str) => readStr(str);
 
 MalList qqLoop(MalListBase list) => MalList(
   list.isEmpty
@@ -22,7 +22,7 @@ MalList qqLoop(MalListBase list) => MalList(
         ].reduce((combined, curr) => curr..list.add(combined)),
 );
 
-MalType quasiquote(MalType ast) {
+MalAny quasiquote(MalAny ast) {
   final ret = switch (ast) {
     final MalList list when list.length == 2 && list.first == unquote =>
       list.second,
@@ -35,7 +35,7 @@ MalType quasiquote(MalType ast) {
 }
 
 int depth = 0;
-MalType eval(MalType ast, Env env) {
+MalAny eval(MalAny ast, Env env) {
   depth++;
   int loop = 0;
   while (true) {
@@ -74,10 +74,10 @@ MalType eval(MalType ast, Env env) {
                 },
                 MalSymbol(name: 'fn*') =>
                   list.second is MalListBase
-                      ? ((params) => MalClosure(
+                      ? ((List<MalSymbol> params) => MalClosure(
                           params,
                           env,
-                          (List<MalType> fnArgs) => eval(
+                          (List<MalAny> fnArgs) => eval(
                             list.third,
                             Env(outer: env, binds: params, exprs: fnArgs),
                           ),
@@ -116,10 +116,7 @@ MalType eval(MalType ast, Env env) {
                     fn
                         .call(list.args.map((e) => eval(e, env)).toList(), env)
                         .toTCO(),
-                  final MalMacroFunction fn =>
-                    (fn.isTCO)
-                        ? fn.callTCO(list.args, env)
-                        : fn.call(list.args, env).toTCO(),
+                  final MalMacroFunction fn => fn.call(list.args, env),
                   final MalClosure fn when fn.isNotMacro => (
                     fn.ast!,
                     Env(
@@ -163,16 +160,16 @@ MalType eval(MalType ast, Env env) {
   }
 }
 
-String print(MalType str) => prStr(str, true);
+String print(MalAny str) => prStr(str, true);
 
 final replEnv = globalEnv
   ..addAll({
-    'def!': MalMacroFunction.normal(
+    'def!': MalMacroFunction(
       'def!',
-      (List<MalType> args, Env env) =>
-          env[args[0].malSymbolName] = eval(args[1], env),
+      (List<MalAny> args, Env env) =>
+          (env[(args[0] as MalSymbol).name] = eval(args[1], env)).toTCO(),
     ),
-    'let*': MalMacroFunction.tco('let*', (List<MalType> args, Env env) {
+    'let*': MalMacroFunction('let*', (List<MalAny> args, Env env) {
       final newEnv = Env(outer: env);
       MalListBase first = args.first.asMalListBase(
         errMsg: 'unsupported ${args.first.runtimeType} as Let* \'s first arg',
@@ -183,12 +180,12 @@ final replEnv = globalEnv
       }
       return (args.second, newEnv, true);
     }),
-    'time': MalMacroFunction.normal('time', (List<MalType> args, Env env) {
+    'time': MalMacroFunction('time', (List<MalAny> args, Env env) {
       final stopwatch = Stopwatch()..start();
       final ret = eval(args.first, env);
       stopwatch.stop();
       println('time: ${stopwatch.elapsed}');
-      return ret;
+      return ret.toTCO();
     }),
     ...ns,
     'eval': MalFunction((args, env) => eval(args.first, env.outer ?? env)),

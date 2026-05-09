@@ -13,7 +13,7 @@ abstract class MalError extends Error {
 }
 
 class CustomThrowError extends MalError {
-  final MalType err;
+  final MalAny err;
   CustomThrowError(this.err):super(err.toStr());
   @override
   String toString() => 'Error: $message';

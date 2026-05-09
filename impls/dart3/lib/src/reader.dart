@@ -73,7 +73,7 @@ List<Token> tokenize(String str) {
 
 final intRe = RegExp(r'^-?[0-9]+$');
 final strRe2 = RegExp(r'''"(?<string>(?:\\.|[^\\"])*)"?''');
-MalType readAtom(Reader reader) {
+MalAny readAtom(Reader reader) {
   final token = reader.next();
   if (token == null) throw UnexpectedError('unexpecetd EOF');
 
@@ -98,7 +98,7 @@ MalType readAtom(Reader reader) {
   return MalSymbol(token);
 }
 
-MalType readList(Reader reader, ParenthesesType p) {
+MalAny readList(Reader reader, ParenthesesType p) {
   assert(reader.peek()!.str == p.left);
   reader.next();
   final list = switch (p) {
@@ -107,7 +107,7 @@ MalType readList(Reader reader, ParenthesesType p) {
     .curly => MalMap(),
   };
   bool isKey = true;
-  MalType key = nil;
+  MalAny key = nil;
   while (true) {
     final peek = reader.peek();
     if (peek == null) throw UnexpectedError('unexpecetd EOF');
@@ -118,7 +118,7 @@ MalType readList(Reader reader, ParenthesesType p) {
     switch (p) {
       case .round:
       case .square:
-        (list as ListBase<MalType?>).add(readForm(reader));
+        (list as ListBase<MalAny?>).add(readForm(reader));
         break;
       case .curly:
         if (isKey) {
@@ -136,7 +136,7 @@ MalType readList(Reader reader, ParenthesesType p) {
     }
     isKey = !isKey;
   }
-  return list as MalType;
+  return list as MalAny;
 }
 
 const macros = <String, String>{
@@ -147,7 +147,7 @@ const macros = <String, String>{
   '@': 'deref',
   '^': 'with-meta',
 };
-MalType readForm(Reader reader) {
+MalAny readForm(Reader reader) {
   var token = reader.peek();
   MalList readQuote(String token) {
     reader.next();
@@ -171,7 +171,7 @@ MalType readForm(Reader reader) {
   };
 }
 
-MalType readStr(String str) {
+MalAny readStr(String str) {
   final token = tokenize(str);
 
   final reader = Reader(token);

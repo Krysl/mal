@@ -4,7 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:mal/mal.dart';
 import 'package:path/path.dart' as p;
 
-String getName(MalType v) {
+String getName(MalAny v) {
   switch (v) {
     case MalString(val: final str):
     case MalSymbol(name: final str):
@@ -17,7 +17,7 @@ String getName(MalType v) {
   }
 }
 
-int getInt(MalType v) {
+int getInt(MalAny v) {
   switch (v) {
     case MalInt(val: final val):
       return val;
@@ -28,27 +28,24 @@ int getInt(MalType v) {
   }
 }
 
-final Map<String, MalType> ns = {
-  'loglevel': MalMacroFunction.normal<MalType>('loglevel', (
-    List<MalType> args,
-    Env env,
-  ) {
+final Map<String, MalAny> ns = {
+  'loglevel': MalMacroFunction('loglevel', (List<MalAny> args, Env env) {
     if (args.isEmpty) {
-      return MalString(Logger.level.name);
+      return MalString(Logger.level.name).toTCO();
     }
 
     setLogLevel(getName(args.first));
 
-    return MalNil();
+    return MalNil().toTCO();
   }),
-  'log': MalFunction((List<MalType> args, Env env) {
+  'log': MalFunction((List<MalAny> args, Env env) {
     logger.log(
       getLogLevelFromName(getName(args.first)),
       args.map((e) => e.toStr()),
     );
     return MalNil();
   }),
-  'env': MalFunction((List<MalType> args, Env env) {
+  'env': MalFunction((List<MalAny> args, Env env) {
     int dep = args.isEmpty ? 0 : getInt(args.first);
     Env p = env;
     while (dep > 0 && p.outer != null) {
@@ -58,52 +55,52 @@ final Map<String, MalType> ns = {
     return MalMap(p.data.map((k, v) => MapEntry(MalString(k), v)));
   }),
   'type': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalString(args.first.runtimeType.toString()),
   ),
-  'prn': MalFunction((List<MalType> args, Env env) {
+  'prn': MalFunction((List<MalAny> args, Env env) {
     println(args.isNotEmpty ? args.map((e) => prStr(e, true)).join(' ') : '');
     return MalNil();
   }),
-  'println': MalFunction((List<MalType> args, Env env) {
+  'println': MalFunction((List<MalAny> args, Env env) {
     println(args.isNotEmpty ? args.map((e) => prStr(e, false)).join(' ') : '');
     return MalNil();
   }),
   'pr-str': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalString(args.map((e) => prStr(e, true)).join(' ')),
   ),
   'str': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalString(args.map((e) => prStr(e, false)).join('')),
   ),
   '+': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         args.first.asMalInt() + args.second.asMalInt(),
   ),
   '-': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         args.first.asMalInt() - args.second.asMalInt(),
   ),
   '*': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         args.first.asMalInt() * args.second.asMalInt(),
   ),
   '/': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         args.first.asMalInt() / args.second.asMalInt(),
   ),
-  'list': MalFunction((List<MalType> args, Env env) => MalList(args)),
+  'list': MalFunction((List<MalAny> args, Env env) => MalList(args)),
   'list?': MalFunction(
-    (List<MalType> args, Env env) => MalBool(args.first is MalList),
+    (List<MalAny> args, Env env) => MalBool(args.first is MalList),
   ),
   'cons': MalFunction(
-    (List<MalType> args, Env env) => MalList([
+    (List<MalAny> args, Env env) => MalList([
       args.first,
       if (args.length > 1) ...args.second.asMalListBase(),
     ]),
   ),
-  'nth': MalFunction((List<MalType> args, Env env) {
+  'nth': MalFunction((List<MalAny> args, Env env) {
     var list = args.first.asMalListBase();
     var index = args.second.asInt();
     if (index >= list.length) {
@@ -112,11 +109,11 @@ final Map<String, MalType> ns = {
     return list[index];
   }),
   'first': MalFunction(
-    (List<MalType> args, Env env) => args.first == MalNil()
+    (List<MalAny> args, Env env) => args.first == MalNil()
         ? MalNil()
         : args.first.asMalListBase().firstOrNull ?? MalNil(),
   ),
-  'rest': MalFunction((List<MalType> args, Env env) {
+  'rest': MalFunction((List<MalAny> args, Env env) {
     var list = args.first.asMalListBaseOrNil();
     if (list == null || list.length < 2) {
       return MalList();
@@ -125,17 +122,17 @@ final Map<String, MalType> ns = {
     return MalList(rest);
   }),
   'concat': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalList((List<MalListBase>.from(args)).flattenedToList),
   ),
   'vec': MalFunction(
-    (List<MalType> args, Env env) => args.isNotEmpty
+    (List<MalAny> args, Env env) => args.isNotEmpty
         ? (args.first is! MalVector
-              ? MalVector(List<MalType>.from(args.first.asMalListBase()))
+              ? MalVector(List<MalAny>.from(args.first.asMalListBase()))
               : args.first)
         : MalVector(),
   ),
-  'seq': MalFunction((List<MalType> args, Env env) {
+  'seq': MalFunction((List<MalAny> args, Env env) {
     switch (args.first) {
       case final MalList list:
         if (list.isEmpty) return nil;
@@ -168,10 +165,9 @@ final Map<String, MalType> ns = {
     }
   }),
   'empty?': MalFunction(
-    (List<MalType> args, Env env) =>
-        MalBool(args.first.asMalListBase().isEmpty),
+    (List<MalAny> args, Env env) => MalBool(args.first.asMalListBase().isEmpty),
   ),
-  'count': MalFunction((List<MalType> args, Env env) {
+  'count': MalFunction((List<MalAny> args, Env env) {
     switch (args.first) {
       case MalList(length: final len):
         return MalInt(len);
@@ -185,32 +181,32 @@ final Map<String, MalType> ns = {
         );
     }
   }),
-  '=': MalFunction((List<MalType> args, Env env) {
+  '=': MalFunction((List<MalAny> args, Env env) {
     return MalBool(args.first == args.second);
   }),
   '>': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalBool(args.first.asInt() > args.second.asInt()),
   ),
   '>=': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalBool(args.first.asInt() >= args.second.asInt()),
   ),
   '<': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalBool(args.first.asInt() < args.second.asInt()),
   ),
   '<=': MalFunction(
-    (List<MalType> args, Env env) =>
+    (List<MalAny> args, Env env) =>
         MalBool(args.first.asInt() <= args.second.asInt()),
   ),
   'pwd': MalFunction(
-    (List<MalType> args, Env env) => MalString(Directory.current.path),
+    (List<MalAny> args, Env env) => MalString(Directory.current.path),
   ),
   'read-string': MalFunction(
-    (List<MalType> args, Env env) => readStr(args.first.stringVal),
+    (List<MalAny> args, Env env) => readStr(args.first.stringVal),
   ),
-  'slurp': MalFunction((List<MalType> args, Env env) {
+  'slurp': MalFunction((List<MalAny> args, Env env) {
     if (args.first is! MalString) {
       throw UnsupportedError(
         '<${args.first.runtimeType}>${args.first.toStr(true)}',
@@ -222,18 +218,18 @@ final Map<String, MalType> ns = {
     }
     return MalString(file.readAsStringSync());
   }),
-  'atom': MalFunction((List<MalType> args, Env env) => MalAtom(args.first)),
+  'atom': MalFunction((List<MalAny> args, Env env) => MalAtom(args.first)),
   'deref': MalFunction(
-    (List<MalType> args, Env env) => (args.first is MalAtom)
+    (List<MalAny> args, Env env) => (args.first is MalAtom)
         ? (args.first as MalAtom).val.ref
         : throw ArgumentInvalidError(
             "type <${args.first.runtimeType}>${args.first.toStr()} is not a subtype of type 'MalAtom' in type cast",
           ),
   ),
-  'reset!': MalFunction((List<MalType> args, Env env) {
+  'reset!': MalFunction((List<MalAny> args, Env env) {
     return (args.first as MalAtom).ref = args.second;
   }),
-  'swap!': MalFunction((List<MalType> args, Env env) {
+  'swap!': MalFunction((List<MalAny> args, Env env) {
     var atom = (args.first as MalAtom);
     return atom.ref = call(args.second, [atom.ref, ...args.sublist(2)], env);
   }),
@@ -276,13 +272,13 @@ final Map<String, MalType> ns = {
   ),
   'assoc': MalFunction(
     (args, env) => MalMap(
-      Map.from((args.first as MalMap).val)..addEntries(
+      Map<MalAny, MalAny>.from((args.first as MalMap).val)..addEntries(
         args.sublist(1).slices(2).map((l) => MapEntry(l.first, l.second)),
       ),
     ),
   ),
   'dissoc': MalFunction((args, env) {
-    var map = Map<MalType, MalType>.from((args.first as MalMap).val);
+    var map = Map<MalAny, MalAny>.from((args.first as MalMap).val);
     args.sublist(1).forEach(map.remove);
     return MalMap(map);
   }),
@@ -324,18 +320,17 @@ final Map<String, MalType> ns = {
   ),
 };
 
-MalType call(MalType fn, List<MalType> args, Env env) => switch (fn) {
+MalAny call(MalAny fn, List<MalAny> args, Env env) => switch (fn) {
   final MalFunction fn => fn.call(args, env),
   final MalClosure fn => fn.call(args),
   _ => throw UnimplementedError(),
 };
 
-MalFunction isType<T extends MalType>([bool Function(T val)? test]) =>
+MalFunction isType<T extends MalAny>([bool Function(T val)? test]) =>
     MalFunction(
       (args, env) =>
           MalBool(args.first is T && (test?.call(args.first as T) ?? true)),
     );
-
 final preloading = [
   r'''(def! not (fn* (a) (if a false true)))''',
   r'''(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))''',
